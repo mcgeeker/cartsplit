@@ -69,12 +69,13 @@ export interface SplitChargeSelection {chargeIndex:number;assignments:number[]}
 export type AdjustmentKind = "fee" | "shipping" | "coupon" | "gift";
 /** Whole product row indices only. Amounts always come from the freshly read order. */
 export interface AdjustmentPolicy {kind:AdjustmentKind;mode:"all"|"selected"|"category";method:"equal"|"proportional";items:number[]}
-export interface PurchaseSavedReceipt {date:string;totalCents:number;lines:{categoryName:string;cents:number}[];learningSaved:boolean}
+export interface PurchaseDestination {planName:string;accountName:string}
+export interface PurchaseSavedReceipt {destination?:PurchaseDestination;date:string;totalCents:number;lines:{categoryName:string;cents:number}[];learningSaved:boolean}
 export interface PurchaseOrderSession {receipts:PurchaseSavedReceipt[];complete:boolean;orderTotalCents:number;pending?:{state:"saving"|"uncertain";date:string;totalCents:number}}
-export interface PurchaseApprovalPreview { approvalId:string; expiresAt:number;date:string;totalCents:number;lines:{categoryName:string;cents:number}[] }
+export interface PurchaseApprovalPreview { paymentDate?:string;destination?:PurchaseDestination;approvalId:string; expiresAt:number;date:string;totalCents:number;lines:{categoryName:string;cents:number}[] }
 
 export type PurchaseSuggestionSource = "exact" | "history" | "model";
-export interface PurchaseReview { matchedCharges?:{date:string;cents:number;eligible?:boolean}[]; reviewId?:string; items: { title: string; suggestedCategoryId?: string | null; suggestionSource?: PurchaseSuggestionSource | null; cardCents: number | null; quantity?: number | null; priceCents?: number }[]; totalCents: number; summary?: {subtotalCents:number;shippingCents:number;shippingChargeCents?:number;shippingCreditCents?:number;couponCents?:number;feeCents:number;taxCents:number;giftCents:number}; allocationPending?: boolean }
+export interface PurchaseReview { planName?:string;matchedCharges?:{date:string;cents:number;eligible?:boolean}[]; reviewId?:string; items: { title: string; suggestedCategoryId?: string | null; suggestionSource?: PurchaseSuggestionSource | null; cardCents: number | null; quantity?: number | null; priceCents?: number }[]; totalCents: number; summary?: {subtotalCents:number;shippingCents:number;shippingChargeCents?:number;shippingCreditCents?:number;couponCents?:number;feeCents:number;taxCents:number;giftCents:number}; allocationPending?: boolean }
 
 export type MessageRequest =
   | {type:"GET_PURCHASE_ORDER_SESSION";orderKey:string}

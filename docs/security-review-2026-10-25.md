@@ -2,6 +2,16 @@
 
 **Review and remediation completed for the current personal Firefox workflow.** The automated checks below pass. This is a source/dependency review with synthetic execution, not a security certification or a completed real-browser/network acceptance test. Signing, submission and publishing remain on hold.
 
+**Subsequent scope change — October 27:** the owner authorized testing in their
+actual selected CAD plan before packaging. The Test Plan/Lineitem Test destination
+finding below describes the October 25 build, not the current restriction.
+Selected-plan/account matching and preservation of import/match identifiers are now
+covered by synthetic regression tests. Bank dates may differ by up to 2 calendar
+days in either direction; the original YNAB date is preserved and multiple matches
+stop without guessing. The owner subsequently reported that this workflow and the
+posting-date fix work well in Firefox; that acceptance does not extend this dated review.
+See [current architecture](architecture.md) for the updated destination checks.
+
 ## Scope and method
 
 Traced the runtime from the sidebar/background/content entries through authentication, messaging, external requests, DOM parsing, transaction selection/allocation, approval consumption, response verification, cancellation, learning, IndexedDB and session state. Reviewed manifest permissions/CSP, source packaging and deployment/release triggers. Used static reference tracing and the compiler's unused-symbol checks to guide removal, then ran the applicable regression/build checks.

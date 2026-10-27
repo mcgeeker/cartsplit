@@ -43,11 +43,16 @@ choose **Load Temporary Add-on**, and select:
 apps/extension/.output/firefox-mv2/manifest.json
 ```
 
-Enter any needed token only in the extension's connection screen. Current writes
-are restricted to **Test Plan → Lineitem Test**, an open, unlinked, on-budget Cash
-account containing an eligible manual Amazon outflow that is uncategorized,
-unsplit and not reconciled. Do not relax this guard for development convenience.
-Do not repeat accepted financial writes or seed live storage to test learning.
+Enter any needed token only in the extension's connection screen. Select the desired
+CAD plan through **Connection settings → Change YNAB Plan**. The matcher accepts one
+Amazon outflow with the exact amount and a date within 2 calendar days before or
+after Amazon's payment date, in an open, on-budget Cash, Checking, Savings or Credit
+Card account, including linked accounts and imported/matched purchases.
+It still requires an uncategorized, unsplit, nonreconciled transaction without transfers.
+Verify the actual plan/account and YNAB date in the prepared proposal before approving
+each save. The Amazon date is also shown when different; the YNAB date is preserved.
+Use synthetic data for automated checks; live-plan acceptance is performed locally
+by the owner. Do not repeat accepted financial writes or seed live storage to test learning.
 
 The add-on ID is `cartsplit@mcgeeker`, and its connection database is
 `cartsplit-connection`. This is a separate identity from earlier installations;
@@ -61,9 +66,13 @@ authorization; see [installation and maintenance](personal-installation.md).
 and styles. The retained upstream worker and landing site are not required for
 the extension runtime. Release and worker-deployment jobs remain disabled.
 
-The latest recorded runtime verification on October 25 passed strict typecheck,
-634 tests across 48 files, the Firefox build and manifest guard. A fresh
-extracted-source build reproduced all 17 runtime files in the recorded toolchain.
+The October 27 selected-plan development build passed strict typecheck,
+683 tests across 48 files and the Firefox build, including inclusive ±2-day bank
+posting-date matching and preservation of the original YNAB date. The earlier October 25
+extracted-source build reproduced all 17 runtime files in the recorded toolchain;
+that package evidence predates the selected-plan changes. The owner reported that
+the actual-plan workflow and posting-date fix work well in Firefox. Fresh installation
+packages and durable signed installation remain separate work.
 The known nonfatal transformers import.meta/IIFE warning remains. These results
 do not prove cross-platform reproducibility or numerical model accuracy.
 

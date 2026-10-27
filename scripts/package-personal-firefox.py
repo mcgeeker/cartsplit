@@ -89,7 +89,7 @@ Tests use synthetic data. Model weights are downloaded only at runtime, not buil
 Output: apps/extension/.output/firefox-mv2/ with manifest.json at its root.
 The accompanying VERIFICATION.md describes the tested environment and comparison.
 Do not run signing or release workflows to reproduce the build.
-The runtime remains confined to separately approved Test Plan transactions.
+The runtime requires a selected CAD plan and separate approval for each transaction.
 See docs/personal-installation.md for installation and maintenance boundaries.
 """
     inputs = {str(p.relative_to(ROOT)): p.read_bytes() for p in source_files()}

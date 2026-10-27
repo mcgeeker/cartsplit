@@ -166,10 +166,13 @@ it("revokes a cleanup preview when a new connection attempt starts", async () =>
 
 
 
-async function fixedCanadianApprovalCase() {
+async function fixedCanadianApprovalCase({planId='test-plan',planName='Test Plan',accountName='Lineitem Test',accountType='cash',importId=null,matchedId=null,dateOffsetDays=0}:{planId?:string;planName?:string;accountName?:string;accountType?:string;importId?:string|null;matchedId?:string|null;dateOffsetDays?:number}={}) {
   const date = new Date().toISOString().slice(0,10);
+  const day=Date.parse(`${date}T00:00:00Z`);
+  const transactionDate=new Date(day+dateOffsetDays*86400000).toISOString().slice(0,10);
+  const sinceDate=new Date(day-2*86400000).toISOString().slice(0,10);
   const db = await import('@/lib/db');
-  await (await import('@/lib/settings')).saveSettings({accessToken:'test-only-token',planId:'test-plan',planName:'Test Plan'});
+  await (await import('@/lib/settings')).saveSettings({accessToken:'test-only-token',planId,planName});
   const detailUrl='https://www.amazon.ca/your-orders/order-details?orderID=synthetic-fixed';
   const paymentsUrl='https://www.amazon.ca/cpe/yourpayments/transactions';
   api.tabs.query.mockImplementation(async (q:{active?:boolean})=>q.active?[{id:51,url:detailUrl}]:[{id:52,url:paymentsUrl}]);
@@ -178,29 +181,54 @@ async function fixedCanadianApprovalCase() {
     orderId:'synthetic-fixed',currency:'unspecified',items:[{productId:'B000000001',title:'Synthetic first',cents:1133},{productId:'B000000002',title:'Synthetic second',cents:16999}],
     funding:{subtotalCents:18132,beforeTaxCents:18192,taxCents:2365,giftCardCents:500,cardChargeCents:20057,feeCents:60}
   }:m.type==='READ_CA_PREVIEW_PAYMENTS'?[{orderId:'synthetic-fixed',date,amountCents:20057,refund:false,currency:'unspecified'}]:{matches:true});
-  const tx={id:'test-ca-tx',account_id:'test-account',date,amount:-200570,payee_name:'Amazon.ca',payee_id:'test-payee',memo:'Synthetic preserved memo',flag_color:null,category_id:null,approved:true,cleared:'uncleared',deleted:false,subtransactions:[]};
+  const tx={id:'test-ca-tx',account_id:'test-account',date:transactionDate,amount:-200570,payee_name:'Amazon.ca',payee_id:'test-payee',memo:'Synthetic preserved memo',flag_color:null,category_id:null,approved:true,cleared:'uncleared',deleted:false,subtransactions:[],import_id:importId,matched_transaction_id:matchedId};
   fetchMock.mockImplementation(async(url:string,o:RequestInit)=>{
     let data:object;
     if(o.method==='PUT'){const update=JSON.parse(o.body as string).transaction;data={transaction:{...tx,...update,subtransactions:update.subtransactions?update.subtransactions.map((l:object)=>({...l,deleted:false})):tx.subtransactions}};}
-    else if(url.endsWith('/plans')) data={plans:[{id:'test-plan',name:'Test Plan'}]};
-    else if(url.endsWith('/accounts')) data={accounts:[{id:'test-account',name:'Lineitem Test',type:'cash',on_budget:true,closed:false,deleted:false}]};
+    else if(url.endsWith('/plans')) data={plans:[{id:planId,name:planName,currency_format:{iso_code:'CAD'}}]};
+    else if(url.endsWith('/accounts')) data={accounts:[{id:'test-account',name:accountName,type:accountType,direct_import_linked:accountType==='creditCard',on_budget:true,closed:false,deleted:false}]};
     else if(url.includes('/transactions?since_date=')) data={transactions:[tx]};
     else if(url.endsWith('/categories')) data={category_groups:[{name:'Test',hidden:false,deleted:false,categories:[{id:'test-grocery',name:'🛒 Groceries',hidden:false,deleted:false},{id:'test-other',name:'❗️ Stuff I forgot to plan for',hidden:false,deleted:false}]}]};
     else throw new Error('Unexpected fake route');
     return new Response(JSON.stringify({data}));
   });
-  return {date,db};
+  return {date,db,transactionDate,sinceDate};
 }
 
+it.each([-2,-1,0,1,2])('reviews and separately saves an imported household purchase with bank date offset %i through the actual router',async dateOffsetDays=>{
+ const destination={planName:'Synthetic household plan',accountName:'Synthetic Visa'};
+ const {date,transactionDate}=await fixedCanadianApprovalCase({planId:'synthetic-household',...destination,accountType:'creditCard',importId:'synthetic-import',matchedId:'synthetic-match',dateOffsetDays});
+ const old=api.tabs.sendMessage.getMockImplementation()!;
+ api.tabs.sendMessage.mockImplementation(async(id:number,m:{type:string})=>m.type==='READ_CA_ORDER_SUMMARY'?{
+  orderId:'synthetic-fixed',currency:'unspecified',items:[{title:'Synthetic household purchase',productId:'B000000001',priceCents:20057,quantity:1,lineCents:20057}],
+  subtotalCents:20057,shippingCents:0,feeCents:0,taxCents:0,giftCents:0,totalCents:20057
+ }:old(id,m));
+ const {review}=await send({type:'REVIEW_CA_PURCHASE',confirmed:true});
+ expect(review).toMatchObject({planName:destination.planName,totalCents:20057});
+ const {preview}=await send({type:'PREPARE_PURCHASE_APPROVAL',reviewId:review.reviewId,lineTotals:[false],categories:[{id:'test-grocery',name:'🛒 Groceries'}],confirmed:true,adjustments:[]});
+ expect(preview).toMatchObject({destination,date:transactionDate,paymentDate:date,totalCents:20057});
+ expect(JSON.stringify(preview)).not.toMatch(/test-only-token|test-account|synthetic-import|synthetic-match/);
+ expect(await send({type:'APPLY_PURCHASE_APPROVAL',approvalId:preview.approvalId,confirmed:false})).toHaveProperty('error');
+ expect(fetchMock.mock.calls.filter(([,o])=>o.method==='PUT')).toHaveLength(0);
+ expect(await send({type:'APPLY_PURCHASE_APPROVAL',approvalId:preview.approvalId,confirmed:true})).toMatchObject({ok:true});
+ const writes=fetchMock.mock.calls.filter(([,o])=>o.method==='PUT');expect(writes).toHaveLength(1);
+ expect(writes[0]![0]).toBe('https://api.ynab.com/v1/plans/synthetic-household/transactions/test-ca-tx');
+ expect(JSON.parse(writes[0]![1].body)).toEqual({transaction:{category_id:'test-grocery',approved:true}});
+ expect(await send({type:'GET_PURCHASE_ORDER_SESSION',orderKey:'synthetic-fixed'})).toMatchObject({session:{complete:true,receipts:[{destination,date:transactionDate,totalCents:20057}]}});
+ expect(await send({type:'APPLY_PURCHASE_APPROVAL',approvalId:preview.approvalId,confirmed:true})).toHaveProperty('error');
+ expect(fetchMock.mock.calls.filter(([,o])=>o.method==='PUT')).toHaveLength(1);
+ expect(fetchMock.mock.calls.every(([url])=>url.endsWith('/plans')||url.startsWith('https://api.ynab.com/v1/plans/synthetic-household/'))).toBe(true);
+});
+
 it('checks YNAB eligibility before category GET during automatic review and rejects content-script callers',async()=>{
- const {date,db}=await fixedCanadianApprovalCase();const before=await db.captureLocalData();
+ const {sinceDate,db}=await fixedCanadianApprovalCase();const before=await db.captureLocalData();
  const oldMessage=api.tabs.sendMessage.getMockImplementation()!;
  api.tabs.sendMessage.mockImplementation(async(id:number,m:{type:string})=>m.type==='READ_CA_ORDER_SUMMARY'?{orderId:'synthetic-fixed',currency:'unspecified',items:[{title:'Synthetic first',productId:'B000000001',priceCents:1133,quantity:1,lineCents:1133},{title:'Synthetic second',productId:'B000000002',priceCents:16999,quantity:1,lineCents:16999}],subtotalCents:18132,shippingCents:0,feeCents:60,taxCents:2365,giftCents:500,totalCents:20057,itemsReconciled:true}:oldMessage(id,m));
  const command:MessageRequest={type:'REVIEW_CA_PURCHASE',confirmed:true};
  const denied=await new Promise<any>(resolve=>listener(command,{...sender,tab:{id:51}},resolve));expect(denied).toHaveProperty('error');expect(fetchMock).not.toHaveBeenCalled();
  const r=await send(command);expect(r.review).toMatchObject({items:[{title:'Synthetic first',cardCents:null,quantity:1},{title:'Synthetic second',cardCents:null,quantity:1}],totalCents:20057,allocationPending:true,summary:{feeCents:60,giftCents:500}});
  expect(JSON.stringify(r)).not.toMatch(/test-only-token|test-account|synthetic-fixed|B00000000/);
- expect(fetchMock.mock.calls.map(([url])=>url.split("test-plan")[1])).toEqual(["/accounts",`/accounts/test-account/transactions?since_date=${date}`,"/categories"]);
+ expect(fetchMock.mock.calls.map(([url])=>url.replace('https://api.ynab.com/v1',''))).toEqual(['/plans',"/plans/test-plan/accounts",`/plans/test-plan/transactions?since_date=${sinceDate}`,"/plans/test-plan/categories"]);
  expect((await db.captureLocalData()).counts).toEqual(before.counts);
 });
 
@@ -211,7 +239,7 @@ it('prepares and saves reusable automatic review through actual routing, then le
  const old=api.tabs.sendMessage.getMockImplementation()!;
  let useNewProduct=false;
  api.tabs.sendMessage.mockImplementation(async(id:number,m:{type:string})=>m.type==='READ_CA_ORDER_SUMMARY'?{orderId:'synthetic-fixed',currency:'unspecified',items:[{title:'Synthetic first',productId:useNewProduct?'B000000003':'B000000001',priceCents:1133,quantity:1,lineCents:1133},{title:'Synthetic second',productId:'B000000002',priceCents:16999,quantity:1,lineCents:16999}],subtotalCents:18132,shippingCents:0,feeCents:60,taxCents:2365,giftCents:500,totalCents:20057,itemsReconciled:true}:old(id,m));
- const {review}=await send({type:'REVIEW_CA_PURCHASE',confirmed:true});expect(fetchMock).toHaveBeenCalledTimes(3);expect(fetchMock.mock.calls[2]![0]).toContain('/categories');
+ const {review}=await send({type:'REVIEW_CA_PURCHASE',confirmed:true});expect(fetchMock).toHaveBeenCalledTimes(4);expect(fetchMock.mock.calls[3]![0]).toContain('/categories');
  expect(review.items.map((i:{suggestionSource:string})=>i.suggestionSource)).toEqual(['model','model']);
  expect((await db.captureLocalData()).counts).toEqual(before.counts);
  const categories=[{id:'test-grocery',name:'🛒 Groceries'},{id:'test-other',name:'❗️ Stuff I forgot to plan for'},{id:'test-other',name:'❗️ Stuff I forgot to plan for'}];
@@ -311,7 +339,7 @@ it.each([{labels:true,modern:false},{labels:false,modern:false},{labels:false,mo
  const {date}=await fixedCanadianApprovalCase();
  api.tabs.sendMessage.mockImplementation(async(_id:number,m:{type:string})=>m.type==='READ_CA_ORDER_SUMMARY'?{orderId:'synthetic-fixed',currency:'unspecified',items:[{title:'Synthetic quantity item',productId:'B000000001',priceCents:600,quantity:2,lineCents:null},{title:'Synthetic other',productId:'B000000002',priceCents:16932,quantity:1,lineCents:16932}],subtotalCents:18132,shippingCents:0,feeCents:60,taxCents:2365,giftCents:500,totalCents:20057}:m.type==='READ_CA_PREVIEW_PAYMENTS'?[{orderId:'synthetic-fixed',date,amountCents:20057,refund:false,currency:'unspecified',...(labels?{funding:'card'}:{})},{orderId:'synthetic-fixed',date,amountCents:500,refund:false,currency:'unspecified',...(labels?{funding:'gift_card'}:{})}]:{matches:true});
  const result=await send({type:'REVIEW_CA_PURCHASE',confirmed:true});expect(result.error).toBeUndefined();expect(result.review).toMatchObject({totalCents:20057,items:[{quantity:2},{quantity:1}]});expect(result.review.matchedCharges).toBeUndefined();
- expect(fetchMock).toHaveBeenCalledTimes(3);expect(fetchMock.mock.calls.every(([,o])=>!o.method||o.method==='GET')).toBe(true);
+ expect(fetchMock).toHaveBeenCalledTimes(4);expect(fetchMock.mock.calls.every(([,o])=>!o.method||o.method==='GET')).toBe(true);
  if(!labels){
   const categories=[{id:'test-grocery',name:'🛒 Groceries'},{id:'test-other',name:'❗️ Stuff I forgot to plan for'},modern?{id:'',name:''}:{id:'test-other',name:'❗️ Stuff I forgot to plan for'}];
   const adjustments:import('@/lib/types').AdjustmentPolicy[]=[{kind:'fee',mode:'selected',method:'equal',items:[0]},{kind:'gift',mode:'selected',method:'proportional',items:[1]}];

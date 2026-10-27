@@ -17,10 +17,27 @@ React renders titles/category labels as text. The runtime has no HTML injection,
 ## Review and save lifecycle
 
 1. The workspace follows validated order metadata from the active tab. Drafts remain mounted per order; order keys are own properties, including unusual names such as `constructor`. Session receipts are read-only. Changing tabs never starts a review or save.
-2. Review reads the selected detail page and the one current payments page, reconciles full funding, and checks each exact linked amount/date against eligible YNAB charges before suggesting categories. No ninety-day cutoff applies. Existing categorized/split transactions are preserved.
+2. Review reads the selected detail page and the one current payments page, reconciles full funding, and checks each exact linked amount against eligible Amazon/AMZN YNAB charges within 2 calendar days before or after the Amazon payment date. No ninety-day cutoff applies. Existing categorized/split transactions are preserved.
 3. Preparation recomputes allocation from fresh data and validates exact current category IDs/names. Single-product orders use the complete card amount. Split shipments retain distinct charges and approvals; allocation freezes after the first saved charge. Grants expire after five minutes and are bound to the review, connection, original tabs, target and policy.
-4. Apply consumes the grant before awaiting. It rechecks pages, selected tab, connection, categories and transaction; the writer also verifies that the destination is currently named Test Plan. The only writable target is an eligible manual Amazon outflow in the open, unlinked, on-budget Lineitem Test Cash account. The response must verify parent fields and exact category/split amounts.
+4. Apply consumes the grant before awaiting. It rechecks pages, selected tab, connection, categories and transaction. The matcher freshly verifies the selected plan's ID and CAD currency, then reads its accounts and transactions starting 2 days before the Amazon payment date. Exactly one Amazon outflow with the exact amount and a valid date within the inclusive ±2-day window must belong to an open, on-budget Cash, Checking, Savings or Credit Card account. Linked accounts and imported/matched purchases are supported; categorized, split, reconciled, transfer and ambiguous targets remain blocked. The response must verify parent fields, import/match identifiers and exact category/split amounts.
 5. A sent write is never retried automatically. A lost response or post-send cancellation produces an unconfirmed result and blocks another attempt in that background session. Only verified success can teach categories. Optional local-learning failure cannot turn verified remote success into a failed financial save.
+
+The selected-plan matcher uses the account, currency and import/match fields in
+YNAB's [official OpenAPI schemas](https://github.com/ynab/ynab-sdk-js/blob/main/open_api_spec.yaml).
+It uses one date-bounded transaction read across the selected plan; unrelated merchants
+and unsupported accounts are excluded. Malformed/duplicate accounts and oversized
+account or transaction lists stop the operation. No import, batch-write or retry
+endpoint is enabled. Approval previews and session receipts show the bound plan and
+account names. Changing the selected plan invalidates reviews and grants; category
+cache, learned products and receipts remain scoped by plan ID.
+
+The target snapshot keeps Amazon's original payment date separately from the actual
+YNAB transaction date. The final writer repeats the match around that original Amazon
+date, so the window cannot move when the bank date differs. UTC calendar-day arithmetic
+handles month/year, leap-day and DST boundaries; invalid dates are rejected. Multiple
+candidates always stop, including an exact-date candidate beside another in-window
+candidate. The proposal shows both dates when they differ; writes never include a date
+field and response verification requires the original YNAB date to remain unchanged.
 
 The background serializes connection, cache and review mutations. Cancellation reaches queued/in-flight work immediately. Navigation cancels review/preparation and invalidates final consent while preserving drafts; it preserves an already-sent save. Explicit disconnect cancels active requests. Waiting on a shared model download is abortable; the public download may finish, while canceled text inference/storage cannot resume. Already-running WASM inference is not forcibly terminated.
 

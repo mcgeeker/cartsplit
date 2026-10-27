@@ -1,6 +1,6 @@
 import {orderPayments} from "@/lib/order-payments";
 import type {PurchaseReview} from "@/lib/types";
-import {getReviewedTestTarget,inspectReviewedTestCharge} from "@/lib/ynab";
+import {getReviewedTarget,inspectReviewedCharge} from "@/lib/ynab";
 import {OrderReviewError,orderReviewFailureText,type OrderReviewFailure} from "@/lib/order-review-status";
 import { browser } from "wxt/browser";
 import { requestOrderPage, OrderPageRequestError } from "./page-request";
@@ -19,7 +19,7 @@ export async function reviewSelectedOrder(confirmed:unknown,signal:AbortSignal,c
  signal.throwIfAborted();if(confirmed!==true)throw Error("Confirm this purchase first.");
  stage="connection";
  const connection=await getSettings();signal.throwIfAborted();
- if(!connection.accessToken||!connection.planId||connection.planName!=="Test Plan")throw Error("Select Test Plan.");
+ if(!connection.accessToken||!connection.planId||!connection.planName)throw Error("Select a YNAB plan.");
  stage="tab";
  const tabs=await browser.tabs.query({active:true,currentWindow:true});signal.throwIfAborted();
  const tab=tabs.length===1?tabs[0]:undefined;if(tab?.id===undefined||!isAmazonCaDetailUrl(tab.url??""))throw Error("Select order details.");
@@ -67,9 +67,9 @@ export async function reviewSelectedOrder(confirmed:unknown,signal:AbortSignal,c
  const eligible:boolean[]=[];
  if(validateTarget||linked.length>1){
   stage="candidate-transactions";
-  try{const targetIds=new Set<string>();for(const charge of linked){const target=await (linked.length>1?inspectReviewedTestCharge:getReviewedTestTarget)(connection.planId,charge.date,charge.amountCents,signal,value=>{if(orderReviewFailureText(value))stage=value as OrderReviewFailure;});signal.throwIfAborted();if(targetIds.has(target.transactionId)){stage="paymentGroupDuplicate";throw Error("Repeated target.");}targetIds.add(target.transactionId);eligible.push("eligible" in target?target.eligible as boolean:true);}}
+  try{const targetIds=new Set<string>();for(const charge of linked){const target=await (linked.length>1?inspectReviewedCharge:getReviewedTarget)(connection.planId,charge.date,charge.amountCents,signal,value=>{if(orderReviewFailureText(value))stage=value as OrderReviewFailure;});signal.throwIfAborted();if(target.planName!==connection.planName){stage="connection";throw Error("Select the current YNAB plan again.");}if(targetIds.has(target.transactionId)){stage="paymentGroupDuplicate";throw Error("Repeated target.");}targetIds.add(target.transactionId);eligible.push("eligible" in target?target.eligible as boolean:true);}}
   catch(error){
-   if(error instanceof Error){if(error.message==="The matching transaction is already split.")stage="targetSplit";else if(error.message==="The matching transaction already has a category.")stage="targetCategorized";else if(error.message==="The test target is incomplete or reconciled.")stage="targetIncomplete";}
+   if(error instanceof Error){if(error.message==="The matching transaction is already split.")stage="targetSplit";else if(error.message==="The matching transaction already has a category.")stage="targetCategorized";else if(error.message==="The target is incomplete or reconciled.")stage="targetIncomplete";}
    throw error;
   }
  }
@@ -90,7 +90,7 @@ export async function reviewSelectedOrder(confirmed:unknown,signal:AbortSignal,c
  const detail=await browser.tabs.get(tab.id);signal.throwIfAborted();const payment=await browser.tabs.get(pt.id!);signal.throwIfAborted();const current=await getSettings();signal.throwIfAborted();
  if(detail.url!==tab.url||payment.url!==pt.url||JSON.stringify(current)!==JSON.stringify(connection))throw Error("Review context changed.");
  capture?.({connection,detail:{id:tab.id,url:tab.url!},payments:{id:pt.id!,url:pt.url!},paymentDate:linked[0]!.date,identity:items.map(i=>({productId:i.productId,quantity:i.quantity,lineCents:i.lineCents}))});
- return{...(linked.length>1?{matchedCharges:linked.map((charge,i)=>({date:charge.date,cents:charge.amountCents,eligible:eligible[i]??true}))}:{}),items:items.map((i,n)=>({title:i.title,quantity:i.quantity,priceCents:i.subtotalCents,cardCents:allocation?.[n]?.cardCents??null})),totalCents:raw.totalCents,
+ return{planName:connection.planName,...(linked.length>1?{matchedCharges:linked.map((charge,i)=>({date:charge.date,cents:charge.amountCents,eligible:eligible[i]??true}))}:{}),items:items.map((i,n)=>({title:i.title,quantity:i.quantity,priceCents:i.subtotalCents,cardCents:allocation?.[n]?.cardCents??null})),totalCents:raw.totalCents,
  summary:{subtotalCents:raw.subtotalCents,shippingCents:raw.shippingCents,shippingChargeCents:shippingCharge,shippingCreditCents:shippingCredit,couponCents,feeCents:raw.feeCents,taxCents:raw.taxCents,giftCents:raw.giftCents},allocationPending:pending};
  }catch(error){signal.throwIfAborted();if(error instanceof OrderReviewError)throw error;throw new OrderReviewError(stage);}
 }

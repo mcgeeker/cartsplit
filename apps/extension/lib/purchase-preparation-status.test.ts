@@ -2,7 +2,7 @@ import {expect,it} from 'vitest';
 import {PurchasePreparationError,purchasePreparationFailureText,purchasePreparationStage} from './purchase-preparation-status';
 import {OrderReviewError} from './order-review-status';
 it.each([
- ['candidate-not-found','No transaction'],['candidate-ambiguous','More than one'],['candidate-eligibility','not an eligible'],['candidate-account','unlinked'],['candidate-date','valid date'],['candidate-auth','authorize'],['candidate-rate-limit','limiting'],['categories','selected categories'],
+ ['candidate-not-found','No Amazon transaction'],['candidate-ambiguous','More than one'],['candidate-eligibility','not an eligible'],['candidate-account','on-budget'],['candidate-budget','Choose your plan again'],['candidate-currency','CAD'],['candidate-date','valid date'],['candidate-auth','authorize'],['candidate-rate-limit','limiting'],['categories','selected categories'],
 ] as const)('reports the fixed %s diagnostic', (stage,text)=>{
  expect(purchasePreparationFailureText(new PurchasePreparationError(stage))).toContain(text);
 });

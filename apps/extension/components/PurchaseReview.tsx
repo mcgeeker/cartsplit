@@ -81,7 +81,7 @@ export default function PurchaseReview({categories,visible=true,interactive=true
  }catch{if(run===generation.current)setPrepareError("Could not prepare changes. Refresh categories or review again.");}finally{if(run===generation.current){setBusy(false);setPreparing(false);}}}
  async function apply(){if(!tabActive||busy||locked||!approved||!proposal||proposal.expiresAt<=Date.now())return;const run=++generation.current;setBusy(true);setLocked(true);setApproved(false);setError(null);
  try{const r=await applyPurchaseChanges(proposal.approvalId,true);if(run!==generation.current)return;
- if(r.ok){setReceipts(current=>[...current,{date:proposal.date,totalCents:proposal.totalCents,lines:structuredClone(proposal.lines),learningSaved:r.learningSaved!==false}]);setFinished(!review?.matchedCharges||r.savedChargeIndex!==undefined&&review.matchedCharges.every((c,i)=>c.eligible===false||i===r.savedChargeIndex));}
+ if(r.ok){setReceipts(current=>[...current,{destination:proposal.destination,date:proposal.date,totalCents:proposal.totalCents,lines:structuredClone(proposal.lines),learningSaved:r.learningSaved!==false}]);setFinished(!review?.matchedCharges||r.savedChargeIndex!==undefined&&review.matchedCharges.every((c,i)=>c.eligible===false||i===r.savedChargeIndex));}
  onSessionChange?.();setStatus(r.ok&&r.learningSaved===false?"Changes saved; YNAB’s response matches. Local category learning did not complete. Do not retry the save.":r.ok?"Changes saved; YNAB’s response matches. Inspect the transaction in YNAB.":r.uncertain?"Write result unconfirmed. Inspect YNAB. Do not retry or reload to retry.":r.error??"Changes were not sent.");
  if(r.ok&&r.savedChargeIndex!==undefined&&review?.matchedCharges){const saved=r.savedChargeIndex;setReview(current=>current?{...current,matchedCharges:current.matchedCharges?.map((c,i)=>i===saved?{...c,eligible:false}:c)}:current);setSplitLocked(true);const next=review.matchedCharges.findIndex((c,i)=>i!==saved&&c.eligible!==false);setSelectedCharge(next<0?"":String(next));setPolicy(false);setLocked(false);setStatus((next<0?"All payments in this order are categorized. Inspect the results in YNAB.":"Charge saved and verified. Inspect it in YNAB, then select the next uncategorized charge. Each charge needs separate approval.")+(r.learningSaved===false?" Local learning did not complete. Do not save this charge again.":""));}
  }
@@ -117,7 +117,7 @@ export default function PurchaseReview({categories,visible=true,interactive=true
  </div>}
  {review?.matchedCharges&&<div ref={splitReviewStart} className="mt-1 scroll-mt-3 space-y-3 text-[13px] leading-relaxed">
  <h3 className="font-semibold text-text">Split-shipment charges matched</h3>
- <p className="text-muted">{review.matchedCharges.length} Amazon charges linked to this order match separate transactions in Test Plan → Lineitem Test.</p>
+ <p className="text-muted">{review.matchedCharges.length} Amazon charges linked to this order match separate transactions in {review.planName??"the selected YNAB plan"}.</p>
  <dl className="space-y-2">{review.matchedCharges.map((charge,i)=><div key={i} className="flex flex-wrap justify-between gap-x-3"><dt className="text-muted">{charge.date}{charge.eligible===false?" · Already categorized — preserved":""}</dt><dd className="font-medium tabular-nums">{cad(charge.cents)}</dd></div>)}</dl>
  <p className="flex justify-between border-t border-line pt-2 font-semibold"><span>Order card total</span><span className="tabular-nums">{cad(review.totalCents)}</span></p>
  <p className="text-muted">{singleItem?"This order has one product. Each payment goes to its category, including all quantities and adjustments. Prepare and approve one uncategorized payment at a time; saved payments stay preserved.":"Choose a payment and category for each item below. Each product row includes all its units. Payment totals stay fixed; shares within each payment use the adjusted item values. Adjustments change estimates only within each payment; they never move money between payments. Prepare and approve one uncategorized payment at a time; existing categorized charges are preserved."}</p>
@@ -189,15 +189,16 @@ export default function PurchaseReview({categories,visible=true,interactive=true
  {review.matchedCharges&&<label className="mt-3 flex flex-col gap-1 text-[13px] font-semibold">Payment to prepare<select aria-label="Payment to prepare" className="rounded-control border border-line-strong bg-surface px-2 py-2 font-normal" value={selectedCharge} disabled={busy||locked} onChange={e=>{clearProposal();setSelectedCharge(e.target.value);}}><option value="">Choose uncategorized payment…</option>{review.matchedCharges.map((charge,i)=><option key={i} value={i} disabled={charge.eligible===false}>{charge.date} · {cad(charge.cents)}{charge.eligible===false?" · Preserved":""}</option>)}</select></label>}
  {allocation&&!locked&&<>{!singleItem&&<label className="mt-2 flex items-start gap-2 text-[13px] font-normal leading-relaxed text-muted"><input type="checkbox" checked={policy} disabled={busy} onChange={e=>{clearProposal();setPolicy(e.target.checked);}}/> {review.matchedCharges?"I confirm these whole-row payment assignments and the proportional estimate within each payment. Each original payment total stays unchanged.":"I accept these displayed line totals, adjustment destinations and distribution methods, and the estimated tax allocation."}</label>}
  <Button disabled={busy||(!singleItem&&!policy)||!review.reviewId||allocation.some((line,i)=>!choices[i]&&(i<review.items.length||!adjustmentIsDistributed(line.kind,adjustments)))||!!review.matchedCharges&&(!splitPreview||selectedCharge===""||review.matchedCharges[Number(selectedCharge)]?.eligible===false||!review.matchedCharges[Number(selectedCharge)])} onClick={prepare}>{preparing?"Preparing changes…":review.matchedCharges?"Prepare selected payment":"Prepare changes"}</Button>
- {preparing&&<p role="status">Validating the current order, categories and Test Plan transaction…</p>}
+ {preparing&&<p role="status">Validating the current order, categories and YNAB transaction…</p>}
  {prepareError&&<p ref={prepareErrorStart} className="scroll-mt-3" role="alert">{prepareError} No transaction changed.</p>}</>}
  {proposal&&<section ref={proposalStart} aria-label="Prepared changes" className="mt-4 scroll-mt-3 flex min-w-0 flex-col gap-3 border-t border-line pt-3 text-[13px] font-normal leading-relaxed">
  <h3 className="font-semibold text-text">Prepared changes</h3>
  <div className="space-y-1 text-muted">
  <p className="font-semibold text-text">Current transaction</p>
  <p>Uncategorized outflow · {cad(proposal.totalCents)}</p>
- <p>Test Plan → Lineitem Test</p>
- <p>Date: {proposal.date}</p>
+ <p>{proposal.destination?`${proposal.destination.planName} → ${proposal.destination.accountName}`:"Selected YNAB plan"}</p>
+ <p>YNAB date: {proposal.date}</p>
+ {proposal.paymentDate&&proposal.paymentDate!==proposal.date&&<p>Amazon payment date: {proposal.paymentDate} · Within the 2-day matching allowance. Your YNAB date stays unchanged.</p>}
  </div>
  <div className="space-y-2">
  <p className="font-semibold text-text">{singleItem?"Proposed category":"Proposed categories"}</p>
@@ -205,7 +206,7 @@ export default function PurchaseReview({categories,visible=true,interactive=true
  <p className="flex flex-wrap justify-between gap-x-3 border-t border-line pt-2 font-semibold text-text"><span>Total</span><span className="tabular-nums">{cad(proposal.totalCents)}</span></p>
  </div>
  <p className="text-muted">Approval expires in five minutes.</p>
- <label className="flex items-start gap-2 text-muted"><input className="mt-1 shrink-0" type="checkbox" checked={approved} disabled={busy||locked} onChange={e=>setApproved(e.target.checked)}/><span>I approve this displayed change in Test Plan and remembering these product categories locally.</span></label>
+ <label className="flex items-start gap-2 text-muted"><input className="mt-1 shrink-0" type="checkbox" checked={approved} disabled={busy||locked} onChange={e=>setApproved(e.target.checked)}/><span>I approve this displayed change in {proposal.destination?.planName??"the selected YNAB plan"} and remembering these product categories locally.</span></label>
  <Button disabled={busy||locked||!approved} onClick={apply}>Save approved changes once</Button>
  </section>}
 

@@ -7,7 +7,7 @@ import { BrandRow, Button, LinkButton, StatusMessage } from "@lineitem/ui";
 import { clearSettings, getCategories, refreshCategories, type PlanInfo } from "@/lib/messaging";
 
 /** Compact selected-order Canadian workspace with connection settings. */
-export default function ConnectionCheck({ plan, onDisconnect }: { plan: PlanInfo; onDisconnect: () => void }) {
+export default function ConnectionCheck({ plan, onDisconnect, onChangePlan }: { plan: PlanInfo; onDisconnect: () => void; onChangePlan?: () => void }) {
   const [categories, setCategories] = useState<Category[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -70,6 +70,7 @@ export default function ConnectionCheck({ plan, onDisconnect }: { plan: PlanInfo
             </details>}
         </section>
         <div className="flex flex-col gap-2">
+        {onChangePlan&&<Button sm className="!w-full !min-h-[34px] !py-[7px]" variant="secondary" disabled={busy} onClick={onChangePlan}>Change YNAB Plan</Button>}
         <Button sm className="!w-full !min-h-[34px] !py-[7px]" variant="secondary" disabled={busy} onClick={refresh}>Refresh budget categories</Button>
         <LinkButton sm className="!w-full !min-h-[34px] !py-[7px]" href="https://app.ynab.com/settings/developer" target="_blank" rel="noopener noreferrer">Manage YNAB Token</LinkButton>
         {/* Remains enabled during a pending category request. */}

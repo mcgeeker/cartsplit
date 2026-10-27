@@ -46,7 +46,7 @@ describe("read-only browser check UI", () => {
     expect(categoryList.open).toBe(true);
     expect(categoryList.querySelector("li")?.textContent).toBe("Test category");
     expect(host.textContent).not.toMatch(/dummy|simulated|One-use|gift-card preview|Local suggestion/);
-    expect([...host.querySelectorAll("button")].map((b) => b.textContent)).toEqual(["Review selected order", "Refresh budget categories", "Disconnect YNAB"]);
+    expect([...host.querySelectorAll("button")].map((b) => b.textContent)).toEqual(["Review selected order", "Change YNAB Plan", "Refresh budget categories", "Disconnect YNAB"]);
   });
 
   it("refreshes categories and reports the server-read success", async () => {
@@ -54,6 +54,14 @@ describe("read-only browser check UI", () => {
     await click("Refresh budget categories");
     expect(refreshCategories).toHaveBeenCalledOnce();
     expect(host.textContent).toContain("Categories refreshed from YNAB");
+  });
+
+  it("opens plan selection without removing the saved local token", async () => {
+    await mount();
+    await click("Change YNAB Plan");
+    expect(host.textContent).toContain("Token entry");
+    expect(clearSettings).not.toHaveBeenCalled();
+    expect(refreshCategories).not.toHaveBeenCalled();
   });
 
   it("keeps disconnect available while a category refresh is pending", async () => {

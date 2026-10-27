@@ -17,8 +17,10 @@ UI, lockfile, licence and verification scripts; it excludes profiles, credential
 dependencies, model caches and generated output. See the adjacent verification
 report for actual rebuild evidence rather than assuming cross-platform identity.
 
-Runtime scope stays **Amazon.ca, English pages, CAD, Test Plan → Lineitem Test**.
-Permanent installation will not enable household accounts or unattended sync.
+Runtime scope is **Amazon.ca, English pages, CAD and the explicitly selected YNAB plan**.
+The owner has accepted the selected-plan workflow and posting-date allowance in
+Firefox. Fresh installation packages remain pending. Each save still requires an eligible target,
+review and deliberate approval. Unattended sync remains disabled.
 The extension keeps its own Firefox ID, `cartsplit@mcgeeker`.
 
 The October 25 rename introduced a new Firefox identity.
@@ -66,7 +68,7 @@ After explicit authorization and receipt of a signed XPI:
 
 These are planned steps, not evidence that signing, migration or permanent
 installation has passed. Each financial save still requires review and explicit
-final consent in the separate Test Plan.
+final consent in the selected plan. The prepared proposal identifies its plan and account.
 
 ## Updates
 

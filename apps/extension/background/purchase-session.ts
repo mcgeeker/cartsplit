@@ -26,6 +26,6 @@ export function purchaseSessionSaved(planId:string,url:string,total:number,trans
 export async function getPurchaseOrderSession(orderKey:unknown){
  const tabs=await browser.tabs.query({active:true,currentWindow:true});
  if(typeof orderKey!=='string'||tabs.length!==1||orderKeyFromUrl(tabs[0]?.url)!==orderKey)throw Error('Select the order tab.');
- const settings=await getSettings();if(!settings.planId||settings.planName!=='Test Plan')return null;
+ const settings=await getSettings();if(!settings.accessToken||!settings.planId)return null;
  return structuredClone(sessions.get(`${settings.planId}:${orderKey}`)?.session??null);
 }

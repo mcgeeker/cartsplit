@@ -5,13 +5,15 @@ import {OrderReviewError,orderReviewFailureText} from './order-review-status';
 const FAILURES = {
  read: 'Could not refresh the reviewed order and linked payment. Keep both Amazon tabs open and select the order tab.',
  categories: 'Could not validate the selected categories. Refresh categories and check each selection.',
- target: 'Could not read the matching Test Plan transaction. Check the connection and try preparation again.',
+ target: 'Could not read the matching YNAB transaction. Check the connection and try preparation again.',
+ 'candidate-budget': 'The selected YNAB plan is no longer available or could not be verified. Choose your plan again in Connection settings.',
+ 'candidate-currency': 'The selected YNAB plan must have verified CAD currency. Currency conversion is not supported.',
  'candidate-date': 'The payment date or amount is invalid. A valid date, no more than one day in the future, and a positive card amount are required.',
- 'candidate-account': 'Could not validate Lineitem Test. It must be the unique open, unlinked, on-budget Cash account in Test Plan.',
- 'candidate-transactions': 'Could not read transactions in Lineitem Test. Check the YNAB connection before preparing again.',
- 'candidate-not-found': 'No transaction in Lineitem Test matches the Amazon payment date and exact card amount. Check those two fields in YNAB.',
- 'candidate-ambiguous': 'More than one transaction in Lineitem Test matches the payment date and amount. Preparation stopped rather than choosing one.',
- 'candidate-eligibility': 'The matching transaction is not an eligible uncategorized, unsplit manual Amazon outflow. Inspect it in YNAB; already-saved transactions must be preserved.',
+ 'candidate-account': 'Could not validate open, on-budget Cash, Checking, Savings or Credit Card accounts in the selected plan.',
+ 'candidate-transactions': 'Could not read transactions in the selected YNAB plan. Check the connection before preparing again.',
+ 'candidate-not-found': 'No Amazon transaction in the selected plan’s supported accounts matches the exact card amount within 2 days before or after the Amazon payment date. Check the amount and dates in YNAB.',
+ 'candidate-ambiguous': 'More than one Amazon transaction matches the exact card amount within 2 days before or after the payment date. Preparation stopped rather than choosing one.',
+ 'candidate-eligibility': 'The matching transaction is not an eligible uncategorized, unsplit Amazon outflow without transfers. Inspect it in YNAB; already-saved transactions must be preserved.',
  'candidate-auth': 'YNAB could not authorize the transaction check. Check the saved connection locally.',
  'candidate-rate-limit': 'YNAB is temporarily limiting requests. Wait before preparing again.',
  context: 'The reviewed tabs or saved connection changed. Select the original order tab and review again.',
@@ -41,8 +43,8 @@ const KNOWN = new Map([
  ['Review canceled.', 'Preparation was canceled. Review the selected order again when ready.'],
  ['This transaction was already attempted. Inspect YNAB; do not retry.', 'This transaction was already attempted. Inspect YNAB; do not retry or reload to retry.'],
  ['The matching transaction is already split.', 'The matching transaction is already split in YNAB. CartSplit preserves saved splits and cannot prepare another change for it.'],
- ['The matching transaction already has a category.', 'The matching transaction already has a category in YNAB. This test workflow only updates uncategorized transactions; leave the existing category unchanged.'],
- ['The test target is incomplete or reconciled.', 'The matching transaction is reconciled or its details could not be validated. Inspect it in YNAB; preparation stopped.'],
+ ['The matching transaction already has a category.', 'The matching transaction already has a category in YNAB. CartSplit only updates uncategorized transactions; leave the existing category unchanged.'],
+ ['The target is incomplete or reconciled.', 'The matching transaction is reconciled or its details could not be validated. Inspect it in YNAB; preparation stopped.'],
 ]);
 export function purchasePreparationFailureText(error:unknown):string {
  if(error instanceof AdjustmentAllocationError)return error.message;

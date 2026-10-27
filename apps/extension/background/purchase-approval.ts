@@ -11,14 +11,14 @@ import {browser} from "wxt/browser";
 import type {OrderReviewBinding} from "./order-review";
 import {selectedPurchaseAdapter} from "@/retailers/review-registry";
 import {getSettings} from "@/lib/settings";
-import {getReviewedTestTarget,getCategories,writeReviewedTestSplit} from "@/lib/ynab";
+import {getReviewedTarget,getCategories,writeReviewedSplit} from "@/lib/ynab";
 import {resolveReviewAllocation} from "@/lib/review-allocation";
 import type {PurchaseApprovalPreview} from "@/lib/types";
 let revision=0;
 let active:{id:string|null;controller:AbortController;writing:boolean}|null=null;
 type Snapshot=Awaited<ReturnType<typeof read>>;
 const reviews=new Map<string,{id:string;expiresAt:number;snapshot:Snapshot;splitLock?:string}>();
-let pending:{id:string;reviewId:string;expiresAt:number;snapshot:Snapshot;target:Awaited<ReturnType<typeof getReviewedTestTarget>>;confirmations:boolean[];choices:{id:string;name:string}[];split?:SplitChargeSelection;adjustments?:AdjustmentPolicy[];lines:Awaited<ReturnType<typeof chosenLines>>}|null=null;
+let pending:{id:string;reviewId:string;expiresAt:number;snapshot:Snapshot;target:Awaited<ReturnType<typeof getReviewedTarget>>;confirmations:boolean[];choices:{id:string;name:string}[];split?:SplitChargeSelection;adjustments?:AdjustmentPolicy[];lines:Awaited<ReturnType<typeof chosenLines>>}|null=null;
 // Sticky per background lifetime: a sent write can never be retried here, even
 // when transport/response verification fails. Reload is not proof of rollback.
 const attempted=new Set<string>();
@@ -68,7 +68,7 @@ async function context(b:OrderReviewBinding,signal:AbortSignal){
  const d=await browser.tabs.get(b.detail.id);signal.throwIfAborted();const p=await browser.tabs.get(b.payments.id);signal.throwIfAborted();const s=await getSettings();signal.throwIfAborted();
  const selected=await browser.tabs.query({active:true,currentWindow:true});signal.throwIfAborted();
  if(selected.length!==1||selected[0]!.id!==b.detail.id)throw Error("Select the reviewed order tab.");
- if(d.url!==b.detail.url||p.url!==b.payments.url||s.accessToken!==b.connection.accessToken||s.planId!==b.connection.planId||s.planName!=="Test Plan")throw Error("Review connection or page changed.");
+ if(d.url!==b.detail.url||p.url!==b.payments.url||s.accessToken!==b.connection.accessToken||s.planId!==b.connection.planId||s.planName!==b.connection.planName)throw Error("Review connection or page changed.");
 }
 /** One review operation owns cancellation. Navigation preserves in-flight writes;
  * explicit disconnect still aborts them and reports uncertainty after send. */
@@ -107,7 +107,7 @@ async function chosenLines(snapshot:Snapshot,confirmations:boolean[],choices:{id
 }
 export async function startPurchaseReview(confirmed:unknown,signal:AbortSignal,expectedRevision?:number){
  if(expectedRevision!==undefined&&expectedRevision!==revision)throw Error("Queued review canceled.");
- beginPurchaseReview();if(confirmed!==true)throw Error("Confirm Test Plan purchase.");
+ beginPurchaseReview();if(confirmed!==true)throw Error("Confirm this purchase.");
  return operation(null,signal,async(s,check)=>{const snapshot=await read(s,true);check();const id=crypto.randomUUID();let suggestions:Awaited<ReturnType<typeof suggestPurchaseCategories>>=snapshot.view.items.map(()=>({categoryId:null,source:null}));
    try{const categories=await getCategories(snapshot.binding.connection.planId!,s);check();suggestions=await suggestPurchaseCategories(snapshot.binding.connection.planId!,snapshot.binding.identity.map(i=>i.productId),categories,s,snapshot.view.items.map(i=>i.title));}catch{check();}
    check();for(const [key,r] of reviews)if(r.expiresAt<=Date.now()||r.snapshot.binding.detail.url===snapshot.binding.detail.url&&r.snapshot.binding.connection.planId===snapshot.binding.connection.planId)reviews.delete(key);reviews.set(id,{id,expiresAt:Date.now()+600000,snapshot:structuredClone(snapshot)});return{...snapshot.view,items:snapshot.view.items.map((item,i)=>({...item,suggestedCategoryId:suggestions[i]?.categoryId??null,suggestionSource:suggestions[i]?.source??null})),reviewId:id};});
@@ -121,12 +121,13 @@ export async function preparePurchaseApproval(id:unknown,lineTotals:unknown,choi
   let fresh:Snapshot;try{fresh=await read(s);}catch(error){if(error instanceof OrderReviewError)throw error;s.throwIfAborted();throw new PurchasePreparationError("read");}check();if(snapshotIdentity(fresh)!==snapshotIdentity(source.snapshot)||source.expiresAt<=Date.now())throw Error("Order changed. Review again.");
   const confirmations=lineTotals as boolean[],selected=choices as {id:string;name:string}[];
   const lines=await chosenLines(fresh,confirmations,selected,s,split,adjustments);check();
-  const charge=payment(fresh,split),b=fresh.binding;let target:Awaited<ReturnType<typeof getReviewedTestTarget>>;let stage:PurchasePreparationStage="target";
-  try{target=await getReviewedTestTarget(b.connection.planId!,charge.date,charge.cents,s,value=>{stage=purchasePreparationStage(value)??stage;});}catch(error){s.throwIfAborted();if(error instanceof Error&&["The test target is incomplete or reconciled.","The matching transaction is already split.","The matching transaction already has a category."].includes(error.message))throw error;throw new PurchasePreparationError(stage);}check();
+  const charge=payment(fresh,split),b=fresh.binding;let target:Awaited<ReturnType<typeof getReviewedTarget>>;let stage:PurchasePreparationStage="target";
+  try{target=await getReviewedTarget(b.connection.planId!,charge.date,charge.cents,s,value=>{stage=purchasePreparationStage(value)??stage;});}catch(error){s.throwIfAborted();if(error instanceof Error&&["The target is incomplete or reconciled.","The matching transaction is already split.","The matching transaction already has a category."].includes(error.message))throw error;throw new PurchasePreparationError(stage);}check();
+  if(target.planName!==b.connection.planName)throw new PurchasePreparationError("context");
   const key=`${b.connection.planId}:${target.transactionId}`;if(attempted.has(key))throw Error("This transaction was already attempted. Inspect YNAB; do not retry.");
   await context(b,s);check();if(source.expiresAt<=Date.now())throw Error("Review expired.");const approvalId=crypto.randomUUID(),expiresAt=Date.now()+300000;
   pending={id:approvalId,reviewId:source.id,expiresAt,snapshot:structuredClone(fresh),target:structuredClone(target),confirmations:structuredClone(confirmations),choices:structuredClone(selected),...(split?{split:structuredClone(split)}:{}),...(adjustments?{adjustments:structuredClone(adjustments)}:{}),lines:structuredClone(lines)};
-  return{approvalId,expiresAt,date:target.date,totalCents:charge.cents,lines:lines.map(l=>({categoryName:l.categoryName,cents:-l.amountMilliunits/10}))};
+  return{approvalId,expiresAt,destination:{planName:target.planName,accountName:target.accountName},paymentDate:charge.date,date:target.date,totalCents:charge.cents,lines:lines.map(l=>({categoryName:l.categoryName,cents:-l.amountMilliunits/10}))};
  });
 }
 export async function applyPurchaseApproval(id:unknown,confirmed:unknown,signal:AbortSignal){
@@ -141,8 +142,8 @@ export async function applyPurchaseApproval(id:unknown,confirmed:unknown,signal:
    checkGrant();await context(b,s);checkGrant();const fresh=await read(s);checkGrant();if(snapshotIdentity(fresh)!==snapshotIdentity(grant.snapshot))throw Error("Order changed.");
    const lines=await chosenLines(fresh,grant.confirmations,grant.choices,s,grant.split,grant.adjustments);checkGrant();if(JSON.stringify(lines)!==JSON.stringify(grant.lines))throw Error("Category allocation changed.");
    const charge=payment(fresh,grant.split);
-   const target=await getReviewedTestTarget(b.connection.planId!,charge.date,charge.cents,s);checkGrant();if(JSON.stringify(target)!==JSON.stringify(grant.target))throw Error("Target transaction changed.");
-   await writeReviewedTestSplit(b.connection.planId!,target,lines,s,token=>{checkGrant(token);attempted.add(key);sent=true;purchaseSessionPending(b.connection.planId!,b.detail.url,grant.snapshot.view.totalCents,charge.date,charge.cents,"saving");},async()=>{await context(b,s);checkGrant();});
+   const target=await getReviewedTarget(b.connection.planId!,charge.date,charge.cents,s);checkGrant();if(JSON.stringify(target)!==JSON.stringify(grant.target))throw Error("Target transaction changed.");
+   await writeReviewedSplit(b.connection.planId!,target,lines,s,token=>{checkGrant(token);attempted.add(key);sent=true;purchaseSessionPending(b.connection.planId!,b.detail.url,grant.snapshot.view.totalCents,target.date,charge.cents,"saving");},async()=>{await context(b,s);checkGrant();});
    const source=reviews.get(grant.reviewId);
    if(grant.split&&source){
     source.splitLock=allocationKey(grant.confirmations,grant.choices,grant.split,grant.adjustments);
@@ -157,7 +158,7 @@ export async function applyPurchaseApproval(id:unknown,confirmed:unknown,signal:
    const learned=b.identity.map((item,index)=>({item,index})).filter(({item,index})=>selectedProducts.some(saved=>saved.index===index||saved.item.productId===item.productId&&grant.choices[saved.index]!.id!==grant.choices[index]!.id));
    await rememberPurchaseCategories(b.connection.planId!,learned.map(({item})=>item.productId),learned.map(({index})=>grant.choices[index]!),s,learned.map(({index})=>grant.snapshot.view.items[index]!.title));learningSaved=true;}catch{/* No retry of the financial write. */}
    const complete=!grant.split||fresh.view.matchedCharges!.every((c,i)=>c.eligible===false||i===grant.split!.chargeIndex);
-   purchaseSessionSaved(b.connection.planId!,b.detail.url,fresh.view.totalCents,target.transactionId,{date:target.date,totalCents:charge.cents,lines:lines.map(l=>({categoryName:l.categoryName,cents:-l.amountMilliunits/10})),learningSaved},complete);
+   purchaseSessionSaved(b.connection.planId!,b.detail.url,fresh.view.totalCents,target.transactionId,{destination:{planName:target.planName,accountName:target.accountName},date:target.date,totalCents:charge.cents,lines:lines.map(l=>({categoryName:l.categoryName,cents:-l.amountMilliunits/10})),learningSaved},complete);
    return {learningSaved,...(grant.split?{savedChargeIndex:grant.split.chargeIndex}:{})};
   }catch(error){if(sent){reviews.delete(grant.reviewId);purchaseSessionPending(b.connection.planId!,b.detail.url,grant.snapshot.view.totalCents,grant.target.date,-grant.target.amount/10,"uncertain");throw new PurchaseWriteUncertainError();}throw error;}
  },true);

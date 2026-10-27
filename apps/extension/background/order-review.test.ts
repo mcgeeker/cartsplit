@@ -1,6 +1,6 @@
 import {beforeEach,expect,it,vi} from 'vitest';
 const io=vi.hoisted(()=>({settings:vi.fn(),query:vi.fn(),compare:vi.fn(),target:vi.fn(),get:vi.fn()}));
-vi.mock('@/lib/ynab',()=>({getReviewedTestTarget:io.target,inspectReviewedTestCharge:io.target}));
+vi.mock('@/lib/ynab',()=>({getReviewedTarget:io.target,inspectReviewedCharge:io.target}));
 vi.mock('@/lib/settings',()=>({getSettings:io.settings}));vi.mock('wxt/browser',()=>({browser:{tabs:{query:io.query,get:io.get}}}));vi.mock('./page-request',async original=>({...await original<object>(),requestOrderPage:io.compare}));
 import {reviewSelectedOrder} from './order-review';
 import {OrderPageRequestError} from './page-request';
@@ -55,7 +55,7 @@ it.each(['candidate-not-found','candidate-ambiguous','candidate-auth','candidate
  expect(io.target).toHaveBeenCalledWith('test-plan','2026-01-01',1000,expect.any(AbortSignal),expect.any(Function));
 });
 it('continues initial Review only after a valid target and uses the linked payment date',async()=>{
- preflightCase();io.target.mockResolvedValue({transactionId:'synthetic-only'});const capture=vi.fn();
+ preflightCase();io.target.mockResolvedValue({planName:'Test Plan',transactionId:'synthetic-only'});const capture=vi.fn();
  await expect(reviewSelectedOrder(true,new AbortController().signal,capture,true)).resolves.toMatchObject({totalCents:1000,items:[{cardCents:1000}]});
  expect(capture).toHaveBeenCalledOnce();expect(io.target).toHaveBeenCalledOnce();
 });
@@ -68,7 +68,7 @@ it('cancellation during the preflight prevents a completed Review',async()=>{
 it('matches every split-shipment charge using its own payment date/amount and returns no financial identifiers',async()=>{
  preflightCase();io.compare.mockReset();
  io.compare.mockResolvedValueOnce({orderId:'synthetic',currency:'unspecified',items:[{productId:'B000000001',title:'Synthetic item',priceCents:1000,quantity:1,lineCents:1000}],subtotalCents:1000,shippingCents:0,feeCents:0,taxCents:0,giftCents:0,totalCents:1000}).mockResolvedValueOnce([{orderId:'synthetic',date:'2026-01-01',amountCents:400,refund:false,currency:'unspecified'},{orderId:'synthetic',date:'2026-01-03',amountCents:600,refund:false,currency:'unspecified'}]);
- io.target.mockImplementation(async(_p,date)=>({transactionId:`synthetic-${date}`}));const capture=vi.fn();
+ io.target.mockImplementation(async(_p,date)=>({planName:'Test Plan',transactionId:`synthetic-${date}`}));const capture=vi.fn();
  const result=await reviewSelectedOrder(true,new AbortController().signal,capture,true);
  expect(result).toMatchObject({items:[{title:'Synthetic item'}],totalCents:1000,matchedCharges:[{date:'2026-01-01',cents:400,eligible:true},{date:'2026-01-03',cents:600,eligible:true}]});
  expect(io.target.mock.calls.map(([plan,date,cents])=>[plan,date,cents])).toEqual([['test-plan','2026-01-01',400],['test-plan','2026-01-03',600]]);
@@ -78,12 +78,12 @@ it('matches every split-shipment charge using its own payment date/amount and re
 it('does not publish a partial split-shipment match when a later charge is ineligible',async()=>{
  preflightCase();io.compare.mockReset();
  io.compare.mockResolvedValueOnce({orderId:'synthetic',currency:'unspecified',items:[{productId:'B000000001',title:'Synthetic item',priceCents:1000,quantity:1,lineCents:1000}],subtotalCents:1000,shippingCents:0,feeCents:0,taxCents:0,giftCents:0,totalCents:1000}).mockResolvedValueOnce([{orderId:'synthetic',date:'2026-01-01',amountCents:400,refund:false,currency:'unspecified'},{orderId:'synthetic',date:'2026-01-03',amountCents:600,refund:false,currency:'unspecified'}]);
- io.target.mockResolvedValueOnce({transactionId:'synthetic-first'}).mockRejectedValueOnce(Error('The matching transaction is already split.'));const capture=vi.fn();
+ io.target.mockResolvedValueOnce({planName:'Test Plan',transactionId:'synthetic-first'}).mockRejectedValueOnce(Error('The matching transaction is already split.'));const capture=vi.fn();
  await expect(reviewSelectedOrder(true,new AbortController().signal,capture,true)).rejects.toMatchObject({stage:'targetSplit'});expect(capture).not.toHaveBeenCalled();expect(io.get).not.toHaveBeenCalled();
 });
 
 it('accepts a reconciled gift-funded order with quantity two and one matching card charge',async()=>{
- preflightCase();io.compare.mockReset();io.target.mockResolvedValue({transactionId:'synthetic-only'});
+ preflightCase();io.compare.mockReset();io.target.mockResolvedValue({planName:'Test Plan',transactionId:'synthetic-only'});
  io.compare.mockResolvedValueOnce({orderId:'synthetic',currency:'unspecified',items:[{productId:'B000000001',title:'Synthetic quantity item',priceCents:600,quantity:2,lineCents:null},{productId:'B000000002',title:'Synthetic other',priceCents:2800,quantity:1,lineCents:2800}],subtotalCents:4000,shippingCents:0,shippingChargeCents:500,shippingCreditCents:500,feeCents:0,taxCents:0,giftCents:1500,totalCents:2500}).mockResolvedValueOnce([{orderId:'synthetic',date:'2026-01-01',amountCents:2500,refund:false,currency:'unspecified'}]);
  expect(await reviewSelectedOrder(true,new AbortController().signal,undefined,true)).toMatchObject({totalCents:2500,summary:{giftCents:1500},items:[{quantity:2},{quantity:1}]});
 });

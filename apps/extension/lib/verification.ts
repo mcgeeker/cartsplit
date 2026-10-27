@@ -6,4 +6,4 @@ export const SIDEBAR_COMMANDS: ReadonlySet<string> = new Set(["APPLY_PURCHASE_AP
 export function connectionCommandAllowed(type: string): boolean {
   return SIDEBAR_COMMANDS.has(type);
 }
-export const CONNECTION_CHECK_MESSAGE = "Only selected-order review and explicitly approved Test Plan changes are available.";
+export const CONNECTION_CHECK_MESSAGE = "Only selected-order review and explicitly approved changes in the selected YNAB plan are available.";

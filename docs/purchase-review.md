@@ -1,7 +1,10 @@
 # Amazon.ca review and approved changes
 
-This workflow currently operates in the separate **Test Plan → Lineitem Test**
-account. It does not run automatic sync, bulk approval or backfill.
+This workflow operates in the **YNAB plan you select**, which must use CAD.
+In **Connection settings → Change YNAB Plan**, choose your actual plan or a test
+plan without removing the saved local token. The new plan's categories are loaded
+before switching; learning and session receipts remain scoped to their original
+plan. It does not run automatic sync, bulk approval or backfill.
 
 For an order containing **one product row**, CartSplit uses a simpler entry: choose
 or check that product's category and click **Prepare changes**. The full card amount,
@@ -18,13 +21,18 @@ The detailed allocation steps below apply to orders with several product rows.
 1. Select the Canadian Order details tab and keep one Canadian Transactions tab
    open in the same window. If none is open, **Open Amazon Transactions** opens
    it in an active tab; select Order details again before reviewing. Click **Review selected order**. Item count, order adjustments and payment data
-   are discovered from the pages. CartSplit first matches the linked Amazon payment
-   date and exact card amount against YNAB in **Test Plan → Lineitem Test**. Only
-   one complete, uncategorized, unsplit manual Amazon outflow is eligible. Missing,
+   are discovered from the pages. CartSplit first matches the linked Amazon payment's
+   exact card amount against Amazon transactions dated **up to 2 calendar days before
+   or after the Amazon payment date**, inclusive, in the selected plan's
+   open, on-budget Cash, Checking, Savings and Credit Card accounts. Linked accounts
+   and imported/matched purchases are supported. Only one complete, uncategorized,
+   unsplit, nonreconciled Amazon outflow without transfers is eligible. Missing,
    duplicate, already categorized/split or unreadable targets stop Review with a
    specific message before allocation/category suggestions. There is no 90-day
    age cutoff; date validity and the existing future-date check remain. This action
    makes read-only YNAB requests and does not change YNAB.
+   An exact-date or nearer-date match is not preferred when several transactions
+   match the amount and Amazon payee within the window; review stops for ambiguity.
    Gift-card funding is reconciled separately from card charges. If one unique
    order-linked payment equals the complete card remainder, CartSplit can also
    accept older unlabeled rows when ALL remaining linked funding exactly equals
@@ -38,7 +46,7 @@ The detailed allocation steps below apply to orders with several product rows.
    For a split shipment, CartSplit groups purchase charges explicitly linked to
    the same order number on the current Transactions page. Their sum must equal
    the order’s card total, and each date/amount must identify a different complete
-   manual Amazon transaction. Saved categorized/split charges are displayed as
+   Amazon transaction. Saved categorized/split charges are displayed as
    preserved; only uncategorized, unsplit charges can be selected for changes.
    Incomplete pages, indistinguishable duplicate rows, more than 20 charges and
    missing/incomplete/otherwise ineligible targets stop Review before suggestions.
@@ -70,9 +78,12 @@ The detailed allocation steps below apply to orders with several product rows.
    an explicit different choice. No reduction is silently capped or reassigned.
    Integer-cent rounding uses largest remainders, with displayed order breaking ties.
 3. Click **Prepare changes**. Fresh page, category and transaction checks must
-   find one uncategorized, unsplit manual Amazon purchase with the detected
-   payment date and amount in Lineitem Test. Already-saved splits are rejected
-   and preserved. Review the before/after category amounts and date.
+   find one uncategorized, unsplit Amazon purchase with the exact card amount within
+   the same ±2-day window in the selected plan. Already-saved splits are rejected
+   and preserved. Review the actual **plan and account names**, before/after category
+   amounts and **YNAB date**. When it differs, the proposal also shows the Amazon
+   payment date. **Saving preserves the original YNAB date**; the tolerance only
+   affects matching. Every preflight stays anchored to the original Amazon date.
 4. Only if the proposal is correct, check the separate final approval and click
    **Save approved changes once** within five minutes. Inspect the transaction
    in YNAB after the verified-response success message.
@@ -136,7 +147,10 @@ motion and keeps keyboard focus unchanged; editing choices does not repeatedly s
 
 Preparing is read-only. Saving changes only the selected transaction's category
 or split and retains its existing approval status. The parent amount, account,
-date, payee, memo, cleared status and flag are preserved. Split memos are empty;
+date, payee, memo, cleared status, flag and import/match identifiers are preserved.
+Missing/non-CAD currency, inaccessible plans and duplicate account or target identities
+stop the operation. A changed plan name, account, import match or parent transaction
+requires a new review. Split memos are empty;
 product titles are not uploaded by this save. Lines sharing a category are
 grouped. A single resulting category uses a direct category update.
 

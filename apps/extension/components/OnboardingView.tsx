@@ -26,7 +26,7 @@ export function OnboardingView({ phase, hasToken = false, plans = [], selectedId
 
   return (
     <div className="flex min-h-screen flex-col gap-[18px] bg-bg p-4 pt-5 text-text">
-      {CONNECTION_CHECK_ONLY && <p role="status" className="text-[14px] font-semibold">Amazon.ca workspace · use your YNAB Test Plan during development.</p>}
+      {CONNECTION_CHECK_ONLY && <p role="status" className="text-[14px] font-semibold">Amazon.ca workspace · choose the YNAB plan you want to categorize.</p>}
       {verificationControls}
       <p className="m-0 text-[14px] leading-[1.55] text-muted">
         Connect directly to YNAB with your Personal Access Token, then choose a budget.
@@ -71,7 +71,7 @@ export function OnboardingView({ phase, hasToken = false, plans = [], selectedId
       {!busy && !hasToken && <LocalDataSection />}
       {(phase === "connecting" || phase === "saving") && <Button variant="ghost" onClick={onReset}>Cancel connection request</Button>}
       <p className="m-0 text-[12.5px] text-faint">
-        Continue using your separate Test Plan during development. Selecting a budget does not limit the token’s access to other budgets.
+        CartSplit matches CAD purchases in the plan you select. Every save needs your approval. Selecting a budget does not limit the token’s access to other budgets.
         Removing the local connection does not revoke the token at YNAB.
       </p>
     </div>

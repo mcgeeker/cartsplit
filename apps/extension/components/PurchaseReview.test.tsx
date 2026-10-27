@@ -64,11 +64,17 @@ it("requires prepared proposal and separate final consent before saving once",as
  expect(host.textContent).toContain('This payment is ready to review.');
  expect([...host.querySelectorAll('button')].find(b=>b.textContent==='Prepare changes')!.disabled).toBe(false);
  expect(host.querySelectorAll('input')).toHaveLength(0);
- vi.mocked(preparePurchaseChanges).mockResolvedValueOnce({preview:{approvalId:'test-approval',expiresAt:Date.now()+300000,date:'2026-10-23',totalCents:1000,lines:[{categoryName:'Synthetic category',cents:1000}]}});
+ vi.mocked(preparePurchaseChanges).mockResolvedValueOnce({preview:{destination:{planName:'Synthetic household plan',accountName:'Synthetic Visa'},approvalId:'test-approval',expiresAt:Date.now()+300000,paymentDate:'2026-10-23',date:'2026-10-24',totalCents:1000,lines:[{categoryName:'Synthetic category',cents:1000}]}});
  await click('Prepare changes');expect(preparePurchaseChanges).toHaveBeenCalledWith('test-review',[false],[{id:'test-cat',name:'Synthetic category'}],true,undefined,[]);
  const save=[...host.querySelectorAll('button')].find(b=>b.textContent==='Save approved changes once')!;expect(save.disabled).toBe(true);expect(applyPurchaseChanges).not.toHaveBeenCalled();
+ expect(host.textContent).toContain('Synthetic household plan → Synthetic Visa');
+ expect(host.textContent).toContain('I approve this displayed change in Synthetic household plan');
+ expect(host.textContent).toContain('YNAB date: 2026-10-24');
+ expect(host.textContent).toContain('Amazon payment date: 2026-10-23');
+ expect(host.textContent).toContain('Your YNAB date stays unchanged.');
+ expect(host.textContent).not.toContain('Test Plan');
  await act(async()=>host.querySelectorAll('input')[0]!.click());vi.mocked(applyPurchaseChanges).mockResolvedValueOnce({ok:true});await click('Save approved changes once');
- expect(applyPurchaseChanges).toHaveBeenCalledExactlyOnceWith('test-approval',true);expect(host.textContent).toContain('Changes saved');expect(host.textContent).toContain('Saved to YNAB');expect(host.querySelectorAll('select')).toHaveLength(0);
+ expect(applyPurchaseChanges).toHaveBeenCalledExactlyOnceWith('test-approval',true);expect(host.textContent).toContain('Changes saved');expect(host.textContent).toContain('Saved to YNAB');expect(host.querySelectorAll('select')).toHaveLength(0);expect(host.textContent).toContain('Synthetic household plan → Synthetic Visa');
  }finally{await act(async()=>root.unmount());host.remove();vi.unstubAllGlobals();}
 });
 

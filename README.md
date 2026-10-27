@@ -64,8 +64,8 @@ approval of financial changes.
 ## Availability
 
 CartSplit is currently a **personal development project** for **Firefox,
-Amazon.ca, English pages and CAD**. The current build restricts financial changes
-to a separate YNAB test plan. A signed, installable release is not yet available.
+Amazon.ca, English pages and CAD**. You choose the YNAB plan, and every financial
+change requires review and approval. A signed, installable release is not yet available.
 
 ## Documentation
 

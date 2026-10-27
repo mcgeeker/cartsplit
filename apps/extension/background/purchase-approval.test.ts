@@ -2,18 +2,22 @@ import {beforeEach,expect,it,vi} from "vitest";
 vi.mock("./purchase-learning",()=>({suggestPurchaseCategories:vi.fn(async()=>[]),rememberPurchaseCategories:vi.fn(async()=>{})}));
 const io=vi.hoisted(()=>({review:vi.fn(),target:vi.fn(),categories:vi.fn(),write:vi.fn(),settings:vi.fn(),tab:vi.fn(),query:vi.fn(),create:vi.fn()}));
 vi.mock("./order-review",()=>({reviewSelectedOrder:io.review}));
-vi.mock("@/lib/ynab",()=>({getReviewedTestTarget:io.target,getCategories:io.categories,writeReviewedTestSplit:io.write}));
+vi.mock("@/lib/ynab",()=>({getReviewedTarget:io.target,getCategories:io.categories,writeReviewedSplit:io.write}));
 vi.mock("@/lib/settings",()=>({getSettings:io.settings}));vi.mock("wxt/browser",()=>({browser:{tabs:{get:io.tab,query:io.query,create:io.create}}}));
 let service:typeof import('./purchase-approval');
 const view={items:[{title:'Synthetic',priceCents:1000,quantity:1,cardCents:1000}],totalCents:1000,summary:{subtotalCents:1000,feeCents:0,shippingCents:0,taxCents:0,giftCents:0},allocationPending:false};
 const binding={connection:{accessToken:'test-only-token',planId:'test-plan',planName:'Test Plan'},detail:{id:1,url:'https://www.amazon.ca/your-orders/order-details?orderID=synthetic'},payments:{id:2,url:'https://www.amazon.ca/cpe/yourpayments/transactions'},paymentDate:'2026-10-23',identity:[{productId:'B000000001'}]};
-const target={transactionId:'test-tx',accountId:'test-account',date:'2026-10-23',amount:-10000,approved:false};
+const target={planName:'Test Plan',paymentDate:'2026-10-23',accountName:'Synthetic account',transactionId:'test-tx',accountId:'test-account',date:'2026-10-23',amount:-10000,approved:false};
 const cats=[{id:'test-cat',name:'Synthetic category',groupName:'Test'}];
 beforeEach(async()=>{vi.resetModules();vi.resetAllMocks();service=await import('./purchase-approval');io.query.mockImplementation(async(q:{active?:boolean})=>q.active?[{id:1,url:binding.detail.url}]:[{id:1,url:binding.detail.url},{id:2,url:binding.payments.url}]);io.review.mockImplementation(async(_c,_s,capture)=>{capture(structuredClone(binding));return structuredClone(view);});io.target.mockResolvedValue(target);io.categories.mockResolvedValue(cats);io.settings.mockResolvedValue(binding.connection);io.tab.mockImplementation(async(id:number)=>({url:id===1?binding.detail.url:binding.payments.url}));io.write.mockImplementation(async(_p,_t,_l,_s,send,context)=>{await context();send('test-only-token');});});
 async function prepare(){const r=await service.startPurchaseReview(true,new AbortController().signal);return service.preparePurchaseApproval(r.reviewId,[false],cats.map(({id,name})=>({id,name})),true,new AbortController().signal);}
 const apply=(id:unknown,confirmed:unknown=true)=>service.applyPurchaseApproval(id,confirmed,new AbortController().signal);
 it('binds category choices to fresh review and explicit local consent, then writes once and learns only after verified success',async()=>{const p=await prepare();expect(JSON.stringify(p)).not.toMatch(/test-only-token|test-tx|test-account|B000000001/);expect(io.write).not.toHaveBeenCalled();await expect(apply(p.approvalId,false)).rejects.toThrow();await apply(p.approvalId);await expect(apply(p.approvalId)).rejects.toThrow();expect(io.write).toHaveBeenCalledOnce();});
 it('consumes before awaiting so duplicate clicks cannot send twice',async()=>{const p=await prepare();const first=apply(p.approvalId);await expect(apply(p.approvalId)).rejects.toThrow();await first;expect(io.write).toHaveBeenCalledOnce();});
+it.each([{planId:'synthetic-other-plan'},{planName:'Synthetic renamed plan'}])('rejects a selected-plan change after preparation: %j',async change=>{
+ const proposal=await prepare();io.settings.mockResolvedValue({...binding.connection,...change});
+ await expect(apply(proposal.approvalId)).rejects.toThrow('connection or page changed');expect(io.write).not.toHaveBeenCalled();
+});
 it.each(['category','target','product','token','page'])('rejects changed %s before sending',async mode=>{const p=await prepare();if(mode==='category')io.categories.mockResolvedValue([{...cats[0],name:'Renamed'}]);if(mode==='target')io.target.mockResolvedValue({...target,transactionId:'replacement'});if(mode==='token')io.settings.mockResolvedValue({...binding.connection,accessToken:'changed'});if(mode==='page')io.tab.mockResolvedValue({url:'https://www.amazon.ca/changed'});if(mode==='product')io.review.mockImplementation(async(_c,_s,capture)=>{capture({...binding,identity:[{productId:'B000000099'}]});return structuredClone(view);});await expect(apply(p.approvalId)).rejects.toThrow();expect(io.write).not.toHaveBeenCalled();});
 it('cancels by approval id and rejects expired grants',async()=>{const p=await prepare();service.invalidatePurchaseApproval(p.approvalId);await expect(apply(p.approvalId)).rejects.toThrow();const q=await prepare();vi.spyOn(Date,'now').mockReturnValueOnce(q.expiresAt+1);await expect(apply(q.approvalId)).rejects.toThrow();vi.restoreAllMocks();});
 it('rejects UI-modified proposal and checks final credential',async()=>{const p=await prepare();p.lines[0]!.cents=1;io.write.mockImplementation(async(_p,_t,lines,_s,send)=>{expect(lines[0].amountMilliunits).toBe(-10000);send('changed-token');});await expect(apply(p.approvalId)).rejects.toThrow();});
@@ -204,7 +208,7 @@ it('honors empty modern policies so tax-only split preview and backend penny wei
 it('records a private session receipt only after verified save, survives review invalidation, and scopes its projection to the selected order and plan',async()=>{
  const sessions=await import('./purchase-session');const p=await prepare();expect(await sessions.getPurchaseOrderSession('synthetic')).toBeNull();
  await apply(p.approvalId);service.invalidatePurchaseApproval();
- const session=await sessions.getPurchaseOrderSession('synthetic');expect(session).toEqual({receipts:[{date:target.date,totalCents:1000,lines:[{categoryName:'Synthetic category',cents:1000}],learningSaved:true}],complete:true,orderTotalCents:1000});
+ const session=await sessions.getPurchaseOrderSession('synthetic');expect(session).toEqual({receipts:[{destination:{planName:'Test Plan',accountName:'Synthetic account'},date:target.date,totalCents:1000,lines:[{categoryName:'Synthetic category',cents:1000}],learningSaved:true}],complete:true,orderTotalCents:1000});
  expect(JSON.stringify(session)).not.toMatch(/test-only-token|test-tx|test-account|B000000001|Synthetic"/);
  session!.receipts[0]!.lines[0]!.cents=1;expect((await sessions.getPurchaseOrderSession('synthetic'))!.receipts[0]!.lines[0]!.cents).toBe(1000);
  await expect(sessions.getPurchaseOrderSession('other')).rejects.toThrow('Select');

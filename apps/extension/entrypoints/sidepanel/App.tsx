@@ -20,5 +20,5 @@ export default function App() {
   }, []);
   if (!ready) return <div className="min-h-screen bg-bg p-4 text-text" role="status">Loading…</div>;
   if (!plan) return <Onboarding onComplete={setPlan} />;
-  return <ConnectionCheck key={plan.id} plan={plan} onDisconnect={() => setPlan(null)} />;
+  return <ConnectionCheck key={plan.id} plan={plan} onDisconnect={() => setPlan(null)} onChangePlan={() => setPlan(null)} />;
 }
