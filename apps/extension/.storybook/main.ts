@@ -4,6 +4,8 @@ import tailwindcss from "@tailwindcss/vite";
 import svgr from "vite-plugin-svgr";
 
 const config: StorybookConfig = {
+  // Local design builds must not send development-tool usage telemetry.
+  core: { disableTelemetry: true },
   stories: [
     "../components/**/*.stories.@(tsx|ts)",
     "../../../packages/ui/src/**/*.stories.@(tsx|ts)",

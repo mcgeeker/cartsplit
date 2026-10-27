@@ -51,3 +51,21 @@ apps/extension/store-assets/masters/
 
 # Claude Code local working dir (worktrees, settings)
 .claude/
+
+# Local dependency cache, generated packages and private continuation notes.
+/.pnpm-store/
+/artifacts/
+/AGENTS.md
+/HANDOFF.md
+/PLAN.md
+
+# Historical local browser exercises; public guides live in docs/development.md.
+/docs/amazon-ca-preparation.md
+/docs/canadian-one-use-approval.md
+/docs/firefox-testing.md
+/docs/milestone-4-verification.md
+/docs/model-network-test.md
+/docs/operation-cancellation.md
+/docs/personal-token-auth.md
+/docs/simulated-split-test.md
+/scripts/package-personal-firefox 2.py

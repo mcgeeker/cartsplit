@@ -37,6 +37,7 @@ concurrency:
 
 jobs:
   release:
+    if: ${{ false }} # Signing/submission/publishing require a separate user decision.
     runs-on: ubuntu-latest
     steps:
       # fetch-depth: 0 so the tag-exists check below sees existing tags.

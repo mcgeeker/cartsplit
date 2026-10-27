@@ -1,12 +1,12 @@
-<!-- Canonical brand mark: rounded-square badge with three "line item" bars.
-     Single source of truth — rendered as a React component by Mark.tsx (via
-     vite-plugin-svgr `?react`) and rasterized into the extension's manifest
-     icons by @wxt-dev/auto-icons. Uses the literal brand color (the value of
-     the brand token in styles/theme.css) rather than a CSS var, since the icon
-     build rasterizes this file outside the DOM where vars don't resolve. -->
+<!-- CartSplit: category lines in a shopping cart with a dollar coin.
+     Canonical artwork for the React mark and generated Firefox icons.
+     Literal teal/gold/white colors also work outside the DOM rasterizer. -->
 <svg width="128" height="128" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect width="28" height="28" rx="8.5" fill="#b5838d" />
-  <rect x="7" y="8.2" width="11" height="2.7" rx="1.35" fill="#fff" />
-  <rect x="7" y="12.65" width="14" height="2.7" rx="1.35" fill="#fff" opacity="0.92" />
-  <rect x="7" y="17.1" width="8" height="2.7" rx="1.35" fill="#fff" opacity="0.66" />
+  <rect width="28" height="28" rx="7" fill="#155e63" />
+  <path d="M4.5 7h2l1.8 13h10.2" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M8 10h10M8.7 14h7M9.3 18h5" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="10" cy="23" r="1.3" fill="#fff"/>
+  <circle cx="17" cy="23" r="1.3" fill="#fff"/>
+  <circle cx="21" cy="13" r="6" fill="#f4c66a" stroke="#155e63" stroke-width="1.3"/>
+  <path d="M22.8 10.6c-.5-.5-2.9-.7-3.2.5-.4 1.6 3.1 1.1 3.1 2.9 0 1.5-2.6 1.6-3.5.8M21.1 9v8" stroke="#155e63" stroke-width="1.3" stroke-linecap="round"/>
 </svg>

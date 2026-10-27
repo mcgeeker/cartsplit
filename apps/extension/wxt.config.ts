@@ -34,70 +34,45 @@ export default defineConfig({
       fileFilter: (file) => !/\.(stories|test)\.[jt]sx?$/.test(file),
     },
   },
-  manifest: ({ browser, command }) => ({
-    name: "lineitem",
-    description: "Match YNAB transactions to your Amazon and Target orders and split each charge into the right budget categories",
-    // Each browser has its own stable-extension-ID mechanism, and each warns on
-    // the other's — so they're mutually exclusive here:
-    //  - Firefox: browser_specific_settings.gecko.id, which also pins the OAuth
-    //    redirect URI (https://<id>.extensions.allizom.org/).
-    //  - Chrome: the pinned public `key` (public half of the keypair, safe to
-    //    commit), which derives a stable extension ID so the YNAB redirect-URI
-    //    registration doesn't change across machines or fresh installs. Emitted
-    //    for `wxt dev` (command "serve") AND `pnpm build:debug` — a loadable debug
-    //    build must OAuth against the same registered redirect URI. The Chrome Web
-    //    Store rejects a manifest `key` on upload, so a normal `wxt build`/zip
-    //    omits it.
+  manifest: ({ browser }) => ({
+    name: "CartSplit",
+    description: "Match YNAB transactions to your Amazon.ca orders and split each charge into the right budget categories",
+    // This fork has its own Firefox identity; never reuse upstream identity.
     ...(browser === "firefox"
       ? {
           browser_specific_settings: {
             gecko: {
-              id: "lineitem@lineitem.dev",
-              // Firefox's built-in data-collection consent (mandatory for new AMO
-              // submissions since 2025-11-03; a missing key is rejected at signing).
-              // Only data that LEAVES the device counts — the Amazon/Target order
-              // reads are processed locally and never transmitted, so they're out
-              // of scope here. What we transmit:
-              //  - authenticationInfo: YNAB OAuth tokens, exchanged via auth.lineitem.dev
-              //  - financialAndPaymentInfo: YNAB budget/transaction data (read + write)
-              //  - personalCommunications: the feedback message + optional email (Web3Forms)
-              // No telemetry, so technicalAndInteraction is omitted (it can only be optional).
+              id: "cartsplit@mcgeeker",
+              // Only the token and approved budget data leave for YNAB.
+              // Model downloads disclose ordinary request metadata to HF/CDN;
+              // product titles and category names are embedded on-device.
               data_collection_permissions: {
-                required: ["authenticationInfo", "financialAndPaymentInfo", "personalCommunications"],
+                required: ["authenticationInfo", "financialAndPaymentInfo"],
               },
             },
           },
         }
-      : command === "serve" || process.env.LINEITEM_DEBUG === "1"
-        ? {
-            key: "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtkJGQ2J6/qiSlDdRHLrauLgKxTeGx2W68jpk+0TPcebtbtdS7OaHxaN+CKTY8a5EUfFdpv/8LDfQC+L7xAjwsKihbagaWiOpe/dKsdzUYi3dUllzIJlDLlEhz9jEqumG6JyQVP6fq1S22+5bXLNCXRNM0vNDDTiq/2m8sytxCN9D5ufv0556uklIBJ/wQvqcCnp107gdYGs3x0ooVwxXZu035YJBLDoIriB/zmwsDoim1koahf9TKV1VqgzdlIt7Jx+sHIUvNA9IA1KGyvwE6Zp2eE6voT3haO2iInwj8QuEvDYmovW7piun5kXPICGXWqNQcjv3HPKhZxXSt3G+8wIDAQAB",
-          }
-        : {}),
+      : {}),
     // `sidePanel` is Chrome-only; including it on Firefox triggers an "Unknown
     // permission" load warning and an AMO review flag. Firefox uses
     // sidebar_action (auto-generated from the sidepanel entrypoint) instead.
     permissions: [
       "storage",
       "tabs",
-      "identity",
       ...(browser === "firefox" ? [] : ["sidePanel"]),
     ],
     // transformers.js runs the embedding model via WebAssembly, which Chrome
     // MV3 blocks unless we explicitly opt in. `wasm-unsafe-eval` allows WASM
     // compilation only — it does NOT re-enable arbitrary eval().
     content_security_policy: {
-      extension_pages: "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'",
+      extension_pages: "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; object-src 'none'; base-uri 'none'; form-action 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://api.ynab.com https://huggingface.co https://*.huggingface.co https://*.hf.co",
     },
     host_permissions: [
-      "https://*.amazon.com/*",
-      "https://*.target.com/*",
+      "https://www.amazon.ca/*",       // explicitly selected Canadian page check
       "https://api.ynab.com/*",
-      "https://app.ynab.com/oauth/*",
-      "https://auth.lineitem.dev/*",
       "https://huggingface.co/*",       // model metadata + resolve redirect
       "https://*.huggingface.co/*",     // legacy LFS CDN (cdn-lfs.huggingface.co)
       "https://*.hf.co/*",              // Xet model-file CDN (cas-bridge.xethub.hf.co)
-      "https://api.web3forms.com/*",    // feedback form submissions
     ],
   }),
   // Firefox's AMO review must be able to rebuild the add-on from source. This is
@@ -129,12 +104,6 @@ export default defineConfig({
     },
   },
   vite: () => ({
-    // `pnpm build:debug` (LINEITEM_DEBUG=1) compiles a loadable build with gated
-    // debug logging on; a normal `wxt build` leaves it false. `wxt dev` doesn't
-    // need this — lib/debug also keys off import.meta.env.DEV.
-    define: {
-      __DEBUG__: JSON.stringify(process.env.LINEITEM_DEBUG === "1"),
-    },
     plugins: [
       tailwindcss(),
       // Lets components import SVGs as React components via the `?react` query

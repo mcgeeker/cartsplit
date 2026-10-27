@@ -31,17 +31,21 @@ jobs:
           filters: |
             extension:
               - 'apps/extension/**'
+              - 'scripts/verify-personal-build.py'
               - 'packages/ui/**'
               - 'pnpm-lock.yaml'
+              - 'package.json'
               - '.github/workflows/ci.yml'
             worker:
               - 'apps/worker/**'
               - 'pnpm-lock.yaml'
+              - 'package.json'
               - '.github/workflows/ci.yml'
             landing:
               - 'apps/landing/**'
               - 'packages/ui/**'
               - 'pnpm-lock.yaml'
+              - 'package.json'
               - '.github/workflows/ci.yml'
 
   extension:
@@ -55,7 +59,8 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm --filter extension exec wxt prepare
       - name: Typecheck
         run: pnpm --filter extension compile
       - name: Unit tests + coverage
@@ -67,12 +72,14 @@ jobs:
           files: apps/extension/coverage/lcov.info
           flags: extension
           fail_ci_if_error: false
-      - name: Build + package zip
-        run: pnpm --filter extension zip
+      - name: Build personal Firefox artifact
+        run: pnpm --filter extension build:firefox
+      - name: Verify personal Firefox boundaries
+        run: python3 scripts/verify-personal-build.py
       - uses: actions/upload-artifact@v7
         with:
-          name: extension-zip
-          path: apps/extension/.output/*.zip
+          name: extension-firefox-unsigned
+          path: apps/extension/.output/firefox-mv2/
           retention-days: 7
           # .output is a dot-directory, and upload-artifact skips hidden
           # paths unless told not to — without this it silently uploads nothing.
@@ -89,7 +96,7 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile --ignore-scripts
       - name: Typecheck
         run: pnpm --filter worker compile
       - name: Unit tests
@@ -108,7 +115,7 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile --ignore-scripts
       - name: Typecheck
         run: pnpm --filter landing compile
       - name: Build

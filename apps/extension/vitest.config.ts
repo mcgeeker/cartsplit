@@ -1,7 +1,10 @@
 import { defineConfig } from "vitest/config";
 import path from "node:path";
+import svgr from "vite-plugin-svgr";
 
 export default defineConfig({
+  // Render the same SVG components as the extension build in DOM tests.
+  plugins: [svgr()],
   test: {
     environment: "node",
     include: [
@@ -42,7 +45,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "."),
+      "@": path.resolve(import.meta.dirname, "."),
     },
   },
 });

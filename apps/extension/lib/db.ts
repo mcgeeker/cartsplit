@@ -1,8 +1,9 @@
+import { LocalDataError } from "./local-data-error";
 import type {
-  AllocatedTransaction,
   Category,
   LearnedProduct,
   ProductEmbedding,
+  LocalDataCounts,
 } from "./types";
 
 const DB_NAME = "lineitem";
@@ -12,9 +13,11 @@ let dbPromise: Promise<IDBDatabase> | null = null;
 
 function openDB(): Promise<IDBDatabase> {
   if (dbPromise) return dbPromise;
-  dbPromise = new Promise((resolve, reject) => {
+  let abandoned = false;
+  const pending = new Promise<IDBDatabase>((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
     request.onupgradeneeded = (event) => {
+      if (abandoned) { request.transaction?.abort(); return; }
       const db = request.result;
 
       if (event.oldVersion < 1) {
@@ -32,22 +35,31 @@ function openDB(): Promise<IDBDatabase> {
       }
 
       if (event.oldVersion < 2) {
-        // v2 — plan-scoped learning: embeddings gain a planId index so
-        // classify reads only the connected plan's pool. Rows written before
-        // v2 have no planId field, which keeps them out of the index until
-        // adoptLegacyLearnedData rewrites them on startup.
+        // v2: plan-scoped embeddings. Unscoped historical rows stay dormant;
+        // their origin must never be inferred from the current connection.
         request
           .transaction!.objectStore("productEmbeddings")
           .createIndex("planId", "planId", { unique: false });
       }
     };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => {
-      dbPromise = null;
-      reject(request.error);
+    const fail = () => {
+      abandoned = true;
+      reject(new Error("Could not open local data. Close other CartSplit panels and reopen."));
+    };
+    request.onblocked = fail;
+    request.onerror = fail;
+    request.onsuccess = () => {
+      const db = request.result;
+      if (abandoned) { db.close(); return; }
+      const reset = () => { if (dbPromise === pending) dbPromise = null; };
+      db.onversionchange = () => { db.close(); reset(); };
+      db.onclose = reset;
+      resolve(db);
     };
   });
-  return dbPromise;
+  dbPromise = pending;
+  void pending.catch(() => { if (dbPromise === pending) dbPromise = null; });
+  return pending;
 }
 
 async function getStore(
@@ -65,37 +77,34 @@ function requestToPromise<T>(request: IDBRequest<T>): Promise<T> {
   });
 }
 
-function transactionDone(tx: IDBTransaction): Promise<void> {
-  return new Promise((resolve, reject) => {
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
-}
 
-// --- Allocated Transactions (primary key: ynabTransactionId) ---
-
-export async function getAllocatedTransaction(
-  ynabTransactionId: string,
-): Promise<AllocatedTransaction | undefined> {
-  const store = await getStore("allocatedTransactions");
-  return requestToPromise(store.get(ynabTransactionId));
-}
-
-/** Atomic batch put — all-or-nothing for an entire sync's allocated transactions. */
-export async function putAllocatedTransactions(
-  transactions: AllocatedTransaction[],
-): Promise<void> {
-  if (transactions.length === 0) return;
+/** Await commit, and roll back a pending mutation if its operation is canceled. */
+async function mutateStores(names: string[], write: (tx: IDBTransaction) => void, signal?: AbortSignal): Promise<void> {
+  signal?.throwIfAborted();
   const db = await openDB();
-  const tx = db.transaction("allocatedTransactions", "readwrite");
-  const store = tx.objectStore("allocatedTransactions");
-  for (const at of transactions) {
-    store.put(at);
-  }
+  signal?.throwIfAborted();
   return new Promise((resolve, reject) => {
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
+    const tx = db.transaction(names, "readwrite");
+    let failure: unknown;
+    const abort = () => { try { tx.abort(); } catch { /* Commit already finished. */ } };
+    const cleanup = () => signal?.removeEventListener("abort", abort);
+    signal?.addEventListener("abort", abort, { once: true });
+    tx.oncomplete = () => { cleanup(); resolve(); };
+    tx.onabort = () => { cleanup(); reject(signal?.aborted ? signal.reason : failure ?? tx.error ?? new Error("Local data update aborted.")); };
+    try { signal?.throwIfAborted(); write(tx); }
+    catch (error) { failure = error; abort(); }
   });
+}
+
+/** Atomically replace reviewed product choices and forget ambiguous assignments. */
+export function putReviewedLearning(rows:LearnedProduct[], removed:string[], signal?:AbortSignal, embeddings:ProductEmbedding[]=[], removedVectors:string[]=[]):Promise<void>{
+  return mutateStores(["learnedProducts", "productEmbeddings"],tx=>{
+    const store=tx.objectStore("learnedProducts"), vectors=tx.objectStore("productEmbeddings");
+    for(const id of removed)store.delete(id);
+    for(const row of rows)store.put(row);
+    for(const id of [...removed,...removedVectors])vectors.delete(id);
+    for(const row of embeddings)vectors.put(row);
+  },signal);
 }
 
 // --- Learned Products (forever-row cache) ---
@@ -112,10 +121,6 @@ export async function getLearnedProduct(id: string): Promise<LearnedProduct | un
   return requestToPromise(store.get(id));
 }
 
-export async function putLearnedProduct(entry: LearnedProduct): Promise<void> {
-  const store = await getStore("learnedProducts", "readwrite");
-  await requestToPromise(store.put(entry));
-}
 
 // --- Product Embeddings (capped similarity pool) ---
 
@@ -126,65 +131,77 @@ export async function getAllProductEmbeddings(planId: string): Promise<ProductEm
   return requestToPromise(store.index("planId").getAll(planId));
 }
 
-export async function putProductEmbedding(entry: ProductEmbedding): Promise<void> {
-  const store = await getStore("productEmbeddings", "readwrite");
-  await requestToPromise(store.put(entry));
-}
-
-export async function deleteProductEmbedding(id: string): Promise<void> {
-  const store = await getStore("productEmbeddings", "readwrite");
-  await requestToPromise(store.delete(id));
-}
-
-/** A learning-store row as it may exist on disk: rows written before plan
- *  scoping (DB v1) have no planId and a "{retailer}:{productId}" id. */
-type MaybeLegacyRow = { id: string; planId?: string };
-
-/**
- * Adopt pre-plan-scoping learning rows into `planId`. Before v2, switching
- * plans cleared these stores, so every unscoped row was necessarily learned
- * on the plan connected at upgrade time. Idempotent — adopted rows carry a
- * planId and are skipped on later runs. Per-store transactions (not atomic
- * across stores): a partial run heals on the next startup.
- */
-export async function adoptLegacyLearnedData(planId: string): Promise<void> {
-  await adoptStore("learnedProducts", planId);
-  await adoptStore("productEmbeddings", planId);
-}
-
-async function adoptStore(
-  name: "learnedProducts" | "productEmbeddings",
-  planId: string,
-): Promise<void> {
-  const db = await openDB();
-  const tx = db.transaction(name, "readwrite");
-  const store = tx.objectStore(name);
-  const rows = await requestToPromise<MaybeLegacyRow[]>(store.getAll());
-  for (const row of rows.filter((r) => r.planId === undefined)) {
-    store.delete(row.id);
-    store.put({ ...row, planId, id: `${planId}:${row.id}` });
-  }
-  return transactionDone(tx);
-}
-
 // --- Categories ---
 
-export async function getAllCategories(): Promise<Category[]> {
+export async function getAllCategories(planId?: string): Promise<Category[]> {
   const store = await getStore("categories");
-  return requestToPromise(store.getAll());
+  const rows = await requestToPromise<(Category & { planId?: string })[]>(store.getAll());
+  return rows.filter(row => planId === undefined || row.planId === planId)
+    .map(({ id, name, groupName }) => ({ id, name, groupName }));
 }
 
 /** Replace all categories atomically. */
-export async function putCategories(categories: Category[]): Promise<void> {
+export async function putCategories(categories: Category[], signal?: AbortSignal, planId?: string): Promise<void> {
+  return mutateStores(["categories"], (tx) => {
+    const store = tx.objectStore("categories");
+    store.clear();
+    for (const cat of categories) store.put({ ...cat, ...(planId ? { planId } : {}) });
+  }, signal);
+}
+
+const LOCAL_DATA_STORES = ["allocatedTransactions", "learnedProducts", "productEmbeddings", "categories"] as const;
+type LocalDataStore = typeof LOCAL_DATA_STORES[number];
+/** Background-only keys. The UI gets counts, never record identifiers/titles. */
+export interface LocalDataSnapshot {
+  keys: Record<LocalDataStore, IDBValidKey[]>;
+  counts: LocalDataCounts;
+}
+
+/** Capture all four stores in one snapshot, or compare and clear them in one
+ * atomic transaction. No connection DB, browser cache, or storage.local access. */
+async function localDataTransaction(expected?: LocalDataSnapshot, signal?: AbortSignal, beforeClear?: () => void): Promise<LocalDataSnapshot> {
+  signal?.throwIfAborted();
   const db = await openDB();
-  const tx = db.transaction("categories", "readwrite");
-  const store = tx.objectStore("categories");
-  store.clear();
-  for (const cat of categories) {
-    store.put(cat);
-  }
+  signal?.throwIfAborted();
   return new Promise((resolve, reject) => {
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
+    const tx = db.transaction([...LOCAL_DATA_STORES], expected ? "readwrite" : "readonly");
+    const keys = {} as LocalDataSnapshot["keys"];
+    let remaining = LOCAL_DATA_STORES.length;
+    let failure: unknown;
+    const abort = () => { try { tx.abort(); } catch { /* Already completed. */ } };
+    const cleanup = () => signal?.removeEventListener("abort", abort);
+    signal?.addEventListener("abort", abort, { once: true });
+    tx.onabort = () => {
+      cleanup();
+      reject(signal?.aborted ? signal.reason : failure ?? new Error("Could not update the local data. No deletion was committed."));
+    };
+    tx.oncomplete = () => {
+      cleanup();
+      const counts = Object.fromEntries(LOCAL_DATA_STORES.map((store) => [store, keys[store].length])) as unknown as LocalDataCounts;
+      resolve({ keys, counts });
+    };
+    for (const name of LOCAL_DATA_STORES) {
+      const request = tx.objectStore(name).getAllKeys();
+      request.onsuccess = () => {
+        keys[name] = request.result;
+        if (--remaining || !expected) return;
+        try {
+          signal?.throwIfAborted();
+          if (LOCAL_DATA_STORES.some((store) => JSON.stringify(keys[store]) !== JSON.stringify(expected.keys[store]))) {
+            throw new LocalDataError("Local records changed. Preview local data removal again.");
+          }
+          beforeClear?.();
+          for (const store of LOCAL_DATA_STORES) { tx.objectStore(store).clear(); keys[store] = []; }
+        } catch (error) { failure = error; abort(); }
+      };
+    }
   });
+}
+
+export function captureLocalData(signal?: AbortSignal): Promise<LocalDataSnapshot> {
+  return localDataTransaction(undefined, signal);
+}
+
+export async function clearLocalDataIfUnchanged(expected: LocalDataSnapshot, signal?: AbortSignal, beforeClear?: () => void): Promise<LocalDataCounts> {
+  return (await localDataTransaction(expected, signal, beforeClear)).counts;
 }

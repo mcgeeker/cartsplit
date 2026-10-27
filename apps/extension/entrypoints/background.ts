@@ -1,154 +1,117 @@
-import { NOT_CONNECTED, YNAB_RECONNECT } from "@/lib/messages";
-import { getSettings, clearSettings } from "@/lib/settings";
-import { runOAuthFlow } from "@/lib/oauth";
-import { getDefaultPlan, getPlans, getCategories, NeedsReauthError, YnabApiError } from "@/lib/ynab";
+import { LocalDataError } from "@/lib/local-data-error";
+import { browser } from "wxt/browser";
+import { getPurchaseOrderSession } from "@/background/purchase-session";
+import { purchasePreparationFailureText } from "@/lib/purchase-preparation-status";
+import { OrderReviewError } from "@/lib/order-review-status";
+import { beginPurchaseReview, purchaseReviewTabState, reopenPurchaseReviewTab, startPurchaseReview, preparePurchaseApproval, applyPurchaseApproval, invalidatePurchaseApproval, PurchaseWriteUncertainError } from "@/background/purchase-approval";
+import { YNAB_RECONNECT, NOT_CONNECTED } from "@/lib/messages";
+import { getSettings, getPublicSettings, clearSettings } from "@/lib/settings";
+import { connectPersonalToken, resolveSelectedPlan, ConnectionInputError } from "@/background/connection";
+import { withConnectionRequest, cancelConnectionRequests } from "@/background/connection-requests";
+import { previewLocalDataDelete, deleteLocalData, invalidateLocalDataPreview } from "@/background/local-data-cleanup";
+import { connectionCommandAllowed, CONNECTION_CHECK_MESSAGE } from "@/lib/verification";
+import { createUiMessageListener } from "@/background/ui-messages";
+import { getPlans, getCategories, NeedsReauthError, YnabApiError } from "@/lib/ynab";
 import { putCategories, getAllCategories } from "@/lib/db";
-import { adoptLegacyLearnedDataOnce, switchPlan } from "@/background/plan";
-import { performSync } from "@/background/sync";
-import { approveTransaction, approveBatch } from "@/background/approval";
-import { ensureModelLoaded } from "@/background/embedder";
-import { runBackfill } from "@/background/backfill";
-import { getAdapter } from "@/retailers/registry";
-import { openRetailerTab, initPageResultListener } from "@/background/tabs";
-import { markVersionSeen } from "@/lib/whats-new";
-import { dlog } from "@/lib/debug";
-import type { MessageBroadcast, MessageRequest } from "@/lib/types";
+import { switchPlan } from "@/background/plan";
+import { clearPurchaseSuggestionCache } from "@/background/purchase-learning";
+import type { MessageRequest } from "@/lib/types";
 
-/** Single in-flight backfill controller. Held at module scope so a
- *  CANCEL_BACKFILL message arriving while START_BACKFILL is still pending
- *  can abort it. `backfillRun` is the run's promise — switchPlan awaits it
- *  after aborting, so the switch resolves only once old-plan work has
- *  fully stopped. */
-let backfillController: AbortController | null = null;
-let backfillRun: Promise<unknown> | null = null;
-
-/** Serializes the two categories-store writers (SAVE_PLAN, REFRESH_CATEGORIES).
- *  putCategories is clear-then-put, so an in-flight refresh finishing after a
- *  plan switch would otherwise land the OLD plan's categories under the new
- *  planId. Chained so each writer starts only after the previous settles. */
-let categoriesWriteChain: Promise<unknown> = Promise.resolve();
+/** Serialize connection, category-cache and review mutations. Cancellation is
+ * delivered immediately; queued requests recheck their signal before I/O.
+ * A failed operation must not poison the queue for subsequent requests. */
+let operationChain: Promise<unknown> = Promise.resolve();
 function serializeCategoriesWrite<T>(fn: () => Promise<T>): Promise<T> {
-  const run = categoriesWriteChain.then(fn, fn);
-  categoriesWriteChain = run.then(
-    () => undefined,
-    () => undefined,
-  );
+  const run = operationChain.then(fn, fn);
+  operationChain = run.then(() => undefined, () => undefined);
   return run;
 }
 
-/** User-facing message for a handler failure — maps the known typed errors. */
-function errorMessage(e: unknown, fallback: string): string {
-  if (e instanceof NeedsReauthError) return YNAB_RECONNECT;
-  return e instanceof Error ? e.message : fallback;
+/** Only controlled errors may cross the privileged message boundary. Storage,
+ * network and model exceptions can contain private paths, identifiers or URLs. */
+function errorMessage(error: unknown, fallback: string): string {
+  if (error instanceof NeedsReauthError) return YNAB_RECONNECT;
+  if (error instanceof DOMException && error.name === "AbortError") return "Connection request canceled.";
+  if (error instanceof ConnectionInputError || error instanceof YnabApiError || error instanceof LocalDataError) return error.message;
+  return fallback;
 }
 
-/** Service worker entry point — routes messages from the side panel to domain handlers. */
+/** Register one authenticated sidebar listener. No startup scraping, learning
+ * migration, model download, background sync or financial operation. */
 export default defineBackground(() => {
-  // Fires on every service-worker startup. If you DON'T see this in the SW
-  // console, you're running a non-debug build (or the extension wasn't reloaded
-  // after `pnpm build:debug`).
-  dlog("boot", "debug logging active");
-
-  // Chrome opens the side panel when its toolbar icon is clicked. Firefox has
-  // no sidePanel API — its sidebar_action provides a toolbar toggle button
-  // natively — so skip this there to avoid a startup TypeError.
   if (chrome.sidePanel) {
-    chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+    void chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
   }
-
-  // Pre-warm the embedder model cache on every SW startup so the first sync
-  // doesn't pay a download tax. Fire-and-forget; errors are non-fatal.
-  ensureModelLoaded().catch((err) => {
-    console.warn("Initial embedder load failed; will retry on first use", err);
-  });
-
-  // One-time adoption of learned rows written before plan scoping (see
-  // adoptLegacyLearnedDataOnce). Fire-and-forget; until it lands, legacy rows
-  // are invisible to classify — a missed suggestion, never a wrong one.
-  adoptLegacyLearnedDataOnce().catch((err) => {
-    console.warn("Learned-data adoption failed; will retry on next startup", err);
-  });
-
-  // Seed the what's-new marker on fresh install, so release notes only ever
-  // show after an update FROM a version the user actually ran (the card
-  // compares this key to the running version — see lib/whats-new).
-  browser.runtime.onInstalled.addListener((details) => {
-    if (details.reason === "install") {
-      markVersionSeen(browser.runtime.getManifest().version).catch((err) => {
-        console.warn("What's-new seed failed; a fresh install may see release notes once", err);
-      });
-    }
-  });
-
-  // Wire content-script page-result messages to the coordinator before any
-  // scrape, so a result from the very first page load can't be missed.
-  initPageResultListener();
-
-  browser.runtime.onMessage.addListener(
-    (message: MessageRequest | MessageBroadcast, _sender, sendResponse) => {
-      // Broadcasts (our own BACKFILL_PROGRESS, which fans out to every extension
-      // page including this one) and content-script PAGE_RESULT pushes (handled
-      // by initPageResultListener) don't expect a response.
-      if (message.type === "BACKFILL_PROGRESS" || message.type === "PAGE_RESULT") return false;
-      handleMessage(message).then(sendResponse);
-      // Return true to keep the message channel open for the async response
-      return true;
-    },
-  );
+  browser.runtime.onMessage.addListener(createUiMessageListener(handleMessage));
 });
 
 async function handleMessage(message: MessageRequest): Promise<unknown> {
+  if (!connectionCommandAllowed(message.type)) return { error: CONNECTION_CHECK_MESSAGE };
   switch (message.type) {
+    case "GET_PURCHASE_ORDER_SESSION": {
+      try{return {session:await getPurchaseOrderSession(message.orderKey)};}catch{return {error:"Could not read this order’s session. Select the order tab."};}
+    }
+    case "SUSPEND_PURCHASE_REVIEW": {invalidatePurchaseApproval(message.reviewId,true);return {ok:true};}
+    case "GET_PURCHASE_REVIEW_TAB": return {state:await purchaseReviewTabState(message.reviewId)};
+    case "REOPEN_PURCHASE_REVIEW_TAB": {
+      try {await reopenPurchaseReviewTab(message.reviewId);return {ok:true};}
+      catch {return {error:"Could not reopen this order tab. It may already be open or the review expired."};}
+    }
+    case "PREPARE_PURCHASE_APPROVAL": {
+      try {return {preview:await withConnectionRequest(s=>serializeCategoriesWrite(()=>preparePurchaseApproval(message.reviewId,message.lineTotals,message.categories,message.confirmed,s,message.split,message.adjustments))) };}
+      catch(error) {return {error:purchasePreparationFailureText(error)};}
+    }
+    case "APPLY_PURCHASE_APPROVAL": {
+      try {const result=await withConnectionRequest(s=>serializeCategoriesWrite(()=>applyPurchaseApproval(message.approvalId,message.confirmed,s)));return {ok:true,...result};}
+      catch(error){return {error:error instanceof PurchaseWriteUncertainError?error.message:"Changes were not sent. Approval expired, was canceled, or no longer matches the order/transaction/categories.",uncertain:error instanceof PurchaseWriteUncertainError};}
+    }
+    case "CANCEL_PURCHASE_APPROVAL": {invalidatePurchaseApproval(message.id);return {ok:true};}
+    case "REVIEW_CA_PURCHASE": {
+      const version=beginPurchaseReview();
+      try { return { review: await withConnectionRequest(signal => serializeCategoriesWrite(() => startPurchaseReview(message.confirmed, signal, version))) }; }
+      catch (error) { return { error: "Purchase review stopped. No transaction changed.", ...(error instanceof OrderReviewError ? { reason: error.stage,...(error.paymentDiagnostic?{paymentDiagnostic:error.paymentDiagnostic}:{}) } : {}) }; }
+    }
     case "GET_SETTINGS": {
       try {
-        return await getSettings();
+        return await getPublicSettings();
       } catch (e) {
-        return { error: e instanceof Error ? e.message : "Failed to load settings" };
-      }
-    }
-
-    case "GET_DEFAULT_PLAN": {
-      try {
-        const plan = await getDefaultPlan();
-        return { plan };
-      } catch (e) {
-        // /plans/default 404s when the consent step wasn't given a default
-        // budget — the one failure with a user-actionable fix, so name it.
-        if (e instanceof YnabApiError && e.status === 404) {
-          return { error: "No default budget selected in YNAB. Reconnect and pick a budget when prompted." };
-        }
-        return { error: errorMessage(e, "Failed to fetch plan") };
+        return { error: "Could not load the local connection. Reopen the sidebar." };
       }
     }
 
     case "GET_PLANS": {
       try {
-        const plans = await getPlans();
+        const plans = await withConnectionRequest((signal) => getPlans(undefined, signal));
         return { plans };
       } catch (e) {
         return { error: errorMessage(e, "Failed to fetch budgets") };
       }
     }
 
-    case "START_OAUTH": {
+    case "CONNECT_TOKEN": {
+      clearPurchaseSuggestionCache();
+      invalidatePurchaseApproval();
+      invalidateLocalDataPreview();
       try {
-        await runOAuthFlow();
-        return { ok: true };
+        return await withConnectionRequest((signal) => serializeCategoriesWrite(() => {
+          signal.throwIfAborted();
+          return connectPersonalToken(message.token, signal);
+        }));
       } catch (e) {
-        return { error: e instanceof Error ? e.message : "OAuth failed" };
+        return { error: errorMessage(e, "Could not validate your token.") };
       }
     }
 
     case "SAVE_PLAN": {
+      clearPurchaseSuggestionCache();
+      invalidatePurchaseApproval();
+      invalidateLocalDataPreview();
       try {
-        await serializeCategoriesWrite(() =>
-          switchPlan(message.planId, message.planName, {
-            abortBackfill: () => {
-              backfillController?.abort();
-              return backfillRun ?? undefined;
-            },
-          }),
-        );
+        await withConnectionRequest((signal) => serializeCategoriesWrite(async () => {
+          signal.throwIfAborted();
+          const chosen = await resolveSelectedPlan(message.planId, signal);
+          await switchPlan(chosen.id, chosen.name, { signal });
+        }));
         return { ok: true };
       } catch (e) {
         return { error: errorMessage(e, "Failed to save plan") };
@@ -159,15 +122,17 @@ async function handleMessage(message: MessageRequest): Promise<unknown> {
       try {
         // planId is read INSIDE the serialized section so a refresh queued
         // behind a plan switch fetches the plan the switch just committed.
-        return await serializeCategoriesWrite(async () => {
+        return await withConnectionRequest((signal) => serializeCategoriesWrite(async () => {
+          signal.throwIfAborted();
           const settings = await getSettings();
           if (!settings.accessToken || !settings.planId) {
             return { error: NOT_CONNECTED };
           }
-          const categories = await getCategories(settings.planId);
-          await putCategories(categories);
+          const categories = await getCategories(settings.planId, signal);
+          signal.throwIfAborted();
+          await putCategories(categories, signal, settings.planId);
           return { ok: true };
-        });
+        }));
       } catch (e) {
         return { error: errorMessage(e, "Failed to refresh categories") };
       }
@@ -175,96 +140,46 @@ async function handleMessage(message: MessageRequest): Promise<unknown> {
 
     case "GET_CATEGORIES": {
       try {
-        const categories = await getAllCategories();
+        const { planId } = await getSettings();
+        const categories = planId ? await getAllCategories(planId) : [];
         return { categories };
       } catch (e) {
-        return { error: e instanceof Error ? e.message : "Failed to load categories" };
+        return { error: "Could not load categories. Refresh budget categories." };
       }
     }
 
     case "CLEAR_SETTINGS": {
+      clearPurchaseSuggestionCache();
+      invalidatePurchaseApproval();
+      invalidateLocalDataPreview();
+      const resumeRequests = cancelConnectionRequests();
       try {
-        await clearSettings();
+        await serializeCategoriesWrite(() => clearSettings());
         return { ok: true };
       } catch (e) {
-        return { error: e instanceof Error ? e.message : "Failed to clear settings" };
-      }
-    }
-
-    case "SYNC":
-      return performSync();
-
-    case "APPROVE_TRANSACTION":
-      return approveTransaction(message.ynabTransactionId, message.items);
-
-    case "APPROVE_BATCH":
-      return approveBatch(message.ynabTransactionIds);
-
-    case "START_BACKFILL": {
-      if (backfillController) return { error: "Backfill already running" };
-      const controller = new AbortController();
-      backfillController = controller;
-      try {
-        // Barrier: let any in-flight plan switch commit its settings before
-        // this run reads them, so a backfill can't start against the plan
-        // being switched away from. A switch that runs during the wait sees
-        // our already-registered controller and aborts it — the check below
-        // turns that into a clean cancel.
-        await serializeCategoriesWrite(async () => {});
-        controller.signal.throwIfAborted();
-
-        const run = runBackfill({
-          fromDate: message.fromDate,
-          retailers: message.retailers,
-          signal: controller.signal,
-          onProgress: (event) => {
-            const broadcast: MessageBroadcast = { type: "BACKFILL_PROGRESS", event };
-            // Side panel may be closed; sendMessage rejects with no
-            // receiver — swallow it.
-            browser.runtime.sendMessage(broadcast).catch(() => {});
-          },
-        });
-        backfillRun = run;
-        const result = await run;
-        return { ok: true, result };
-      } catch (e) {
-        // A user cancel or a plan switch aborting the run is an expected
-        // outcome, not a failure — report it so the card resets quietly
-        // instead of alarming with the DOMException's raw message.
-        if (e instanceof DOMException && e.name === "AbortError") {
-          return { canceled: true };
-        }
-        const reason = e instanceof Error ? e.message : "Backfill failed";
-        return { error: reason };
+        return { error: "Could not remove the local connection. Try again." };
       } finally {
-        backfillController = null;
-        backfillRun = null;
+        resumeRequests();
       }
     }
 
-    case "CANCEL_BACKFILL": {
-      backfillController?.abort();
+    case "PREVIEW_LOCAL_DATA_DELETE":
+    case "DELETE_LOCAL_DATA": {
+      try {
+        return await withConnectionRequest((signal) => serializeCategoriesWrite(async () => {
+          signal.throwIfAborted();
+          return message.type === "PREVIEW_LOCAL_DATA_DELETE"
+            ? { preview: await previewLocalDataDelete(signal) }
+            : { counts: await deleteLocalData(message.approvalId, message.confirmed, signal), ok: true };
+        }));
+      } catch (e) { return { error: errorMessage(e, "Could not complete local data removal.") }; }
+    }
+
+    case "CANCEL_LOCAL_DATA_DELETE": {
+      invalidateLocalDataPreview(message.approvalId);
       return { ok: true };
     }
 
-    case "OPEN_RETAILER": {
-      try {
-        // A step-up block passes the gated page that forces the challenge; fall
-        // back to the retailer's normal start URL (signed-out, which redirects
-        // to login on its own).
-        const destination = message.url ?? getAdapter(message.retailer).startUrl;
-        const result = await openRetailerTab(destination);
-        // Foreground the tab so the user can sign in. Resume is manual (they tap
-        // Sync afterward) — once signed in, the profile-level cookies make any
-        // later scrape authed regardless of which tab it uses.
-        if (result) await browser.tabs.update(result.tabId, { active: true });
-        return { ok: true };
-      } catch (e) {
-        return { error: e instanceof Error ? e.message : "Failed to open retailer" };
-      }
-    }
-
-    default:
-      return { error: `Unknown message type: ${(message as { type: string }).type}` };
+    default: return { error: "Unknown extension request." };
   }
 }

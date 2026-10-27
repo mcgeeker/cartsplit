@@ -8,6 +8,8 @@ import type { PublicPath } from "wxt/browser";
  * https://huggingface.co/Xenova/bge-small-en-v1.5
  */
 const MODEL_ID = "Xenova/bge-small-en-v1.5";
+// Immutable upstream revision: updating model data is an explicit code review.
+const MODEL_REVISION = "ea104dacec62c0de699686887e3f920caeb4f3e3";
 
 const EMBEDDING_DIMS = 384;
 
@@ -15,7 +17,7 @@ const EMBEDDING_DIMS = 384;
  * Module-scope singleton. The model is expensive to instantiate (~30MB
  * download on first ever load, then WASM init from disk cache), so we keep
  * one instance per service-worker lifetime. MV3 kills the SW on idle; on
- * the next message the file loads from cache in ~1s.
+ * the next message initializes from cached files; no fixed latency is assumed.
  */
 let extractorPromise: Promise<FeatureExtractionPipeline> | null = null;
 
@@ -39,6 +41,8 @@ let runtimeConfigured = false;
 function configureOnnxRuntime(): void {
   if (runtimeConfigured) return;
   // env.backends.onnx.wasm is typed as possibly undefined by @huggingface/transformers.
+  env.allowLocalModels = false;
+  env.remoteHost = "https://huggingface.co/";
   const wasm = env.backends.onnx.wasm!;
   wasm.numThreads = 1;
   if (import.meta.env.BROWSER === "firefox") {
@@ -56,6 +60,7 @@ function getExtractor(): Promise<FeatureExtractionPipeline> {
     extractorPromise = (
       pipeline("feature-extraction", MODEL_ID, {
         dtype: "q8",
+        revision: MODEL_REVISION,
       }) as unknown as Promise<FeatureExtractionPipeline>
     )
       .then((extractor) => {
@@ -77,26 +82,39 @@ function getExtractor(): Promise<FeatureExtractionPipeline> {
   return extractorPromise;
 }
 
-/** Pre-warm the model so the first sync doesn't pay the load cost in-band. */
-export async function ensureModelLoaded(): Promise<void> {
-  await getExtractor();
+/** Stop waiting immediately on cancellation. The shared public-file download
+ * may finish and populate cache, but canceled work never reaches inference or
+ * storage. In-flight WASM inference itself remains serialized until it settles. */
+function waitForExtractor(signal?: AbortSignal): Promise<FeatureExtractionPipeline> {
+  signal?.throwIfAborted();
+  const loading = getExtractor();
+  if (!signal) return loading;
+  return new Promise((resolve, reject) => {
+    const cleanup = () => signal.removeEventListener("abort", abort);
+    const abort = () => { cleanup(); reject(signal.reason); };
+    signal.addEventListener("abort", abort, { once: true });
+    loading.then(value => { cleanup(); resolve(value); }, error => { cleanup(); reject(error); });
+    if (signal.aborted) abort();
+  });
 }
 
-export async function embed(text: string): Promise<Float32Array> {
-  const [vec] = await embedBatch([text]);
-  return vec!;
-}
-
-export async function embedBatch(texts: string[]): Promise<Float32Array[]> {
+export async function embedBatch(texts: string[], signal?: AbortSignal): Promise<Float32Array[]> {
+  signal?.throwIfAborted();
   if (texts.length === 0) return [];
-  const extractor = await getExtractor();
+  if (texts.length > 8 || texts.some(text => typeof text !== "string" || text.length > 1000)) throw new Error("Local model batch exceeds review limits.");
+  const extractor = await waitForExtractor(signal);
+  signal?.throwIfAborted();
   // Mean pooling averages per-token vectors into one fixed-size vector per
-  // input (bge's recommended pooling). `normalize: true` makes cosine ≡ dot.
+  // input, preserving the existing vector format. `normalize: true` makes cosine ≡ dot.
   const result = await extractor(texts, { pooling: "mean", normalize: true });
   // The model returns a Tensor with shape [N, EMBEDDING_DIMS] backed by a
   // single flat Float32Array. Slice into N copies — each slice() detaches
   // from the Tensor's underlying buffer so we can safely persist the result.
-  const data = result.data as Float32Array;
+  signal?.throwIfAborted();
+  const data = result.data;
+  if (!(data instanceof Float32Array) || data.length !== texts.length * EMBEDDING_DIMS || !data.every(Number.isFinite)) {
+    throw new Error("Invalid local model output.");
+  }
   return Array.from({ length: texts.length }, (_, i) =>
     data.slice(i * EMBEDDING_DIMS, (i + 1) * EMBEDDING_DIMS),
   );

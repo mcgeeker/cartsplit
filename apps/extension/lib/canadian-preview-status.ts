@@ -1,0 +1,46 @@
+/** Closed public diagnostics: no browser errors, URLs, amounts or page text. */
+export const CANADIAN_PREVIEW_FAILURES = {
+  "candidate-auth": "YNAB rejected the saved connection; reconnect locally before another preview.",
+  "candidate-rate-limit": "YNAB request limit reached; wait before another preview.",
+  "candidate-input": "The amount or per-order confirmation is not valid.",
+  "candidate-budget": "The saved connection is not ready for Test Plan.",
+  "candidate-detail-tab": "The selected Firefox tab is not the supported Amazon.ca Order details page.",
+  "candidate-order-total": "The selected order's total or summary does not match the entered amount.",
+  "candidate-date": "The transaction date must be valid and no more than one day in the future.",
+  "candidate-account": "The Lineitem Test account lookup did not complete or the account is not an open unlinked Cash account.",
+  "candidate-transactions": "The test-account transaction read did not complete.",
+  "candidate-not-found": "No test-account transaction has the entered date and amount.",
+  "candidate-ambiguous": "More than one test-account transaction has the entered date and amount.",
+  "candidate-eligibility": "The transaction is not an uncategorized, unsplit manual Amazon purchase without imports or transfers.",
+  "candidate-context": "The selected order page or saved connection changed during the candidate check.",
+  category: "The selected category is missing, unavailable or renamed. Refresh categories before a new preview.",
+  classification: "The local category-suggestion check did not complete.",
+  candidate: "The test-budget candidate check did not complete.",
+  "payments-tab": "Could not select exactly one Canadian Transactions tab in this Firefox window.",
+  "order-page": "The selected page is not the supported Canadian order-detail page.",
+  "order-summary": "The one-item subtotal or six-row summary check no longer passes on this page.",
+  "order-values": "The order subtotal or total is not a supported positive amount.",
+  "product-link": "No product-title link was found inside the detected item row.",
+  "product-title": "The product title is missing or exceeds the preview limit.",
+  "product-id": "The product link does not contain a recognized Canadian product identifier.",
+  "order-quantity": "The quantity text is not recognized as one item.",
+  "order-url": "The order-identity reader received an unexpected page address or origin.",
+  "order-query-api": "The browser could not read the order address's query parameters.",
+  "order-query-missing": "The order-identity reader found no orderID parameter.",
+  "order-query-duplicate": "The order-identity reader found more than one orderID parameter.",
+  "order-query-format": "The parsed orderID value is empty, too long, or contains unsupported characters.",
+  "order-query": "The detail-page address does not contain one recognized order identity.",
+  "order-unexpected": "The order reader stopped unexpectedly; no private error details were returned.",
+  "order-read": "Could not read the selected order's identity, product or summary for allocation.",
+  "payments-read": "Could not read every payment row on the Canadian Transactions page.",
+  "reply-validation": "The order or payment reply did not pass validation.",
+  "order-identity": "The detail-page order identity could not be verified.",
+  matching: "The payment rows did not provide one matching order link, amount, currency and date window.",
+  context: "The selected pages or YNAB connection changed during the preview.",
+  allocation: "The one-item allocation did not reconcile.",
+} as const;
+export type CanadianPreviewFailure = keyof typeof CANADIAN_PREVIEW_FAILURES;
+export function canadianPreviewFailureText(reason: unknown): string | null {
+  return typeof reason === "string" && Object.hasOwn(CANADIAN_PREVIEW_FAILURES, reason)
+    ? CANADIAN_PREVIEW_FAILURES[reason as CanadianPreviewFailure] : null;
+}

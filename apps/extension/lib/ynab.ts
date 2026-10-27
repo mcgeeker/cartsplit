@@ -1,9 +1,13 @@
-import type { YnabTransaction, Category } from "./types";
-import { getValidAccessToken, NeedsReauthError } from "./oauth";
-import { saveSettings } from "./settings";
+import type { CanadianPreviewFailure } from "./canadian-preview-status";
+import type { Category } from "./types";
+import { getValidAccessToken, NeedsReauthError } from "./auth";
+import { CONNECTION_CHECK_MESSAGE } from "./verification";
 
 const BASE_URL = "https://api.ynab.com/v1";
 const INTERNAL_CATEGORY_GROUP = "Internal Master Category";
+// Private capabilities: only the reviewed target reader/writer below can use them.
+const CANADIAN_READ = Symbol("canadian-single-candidate-read");
+const REVIEW_WRITE = Symbol("reviewed-test-plan-write");
 
 interface YnabCategoryGroup {
   name: string;
@@ -27,47 +31,63 @@ function isVisible(item: { hidden: boolean; deleted: boolean }): boolean {
  *  callers specialize via the generic. */
 type YnabApiResponse<T> = { data: T };
 
-/** Thrown for non-2xx YNAB responses. Carries the HTTP status so handlers can
- *  map specific failures (e.g. 404 from /plans/default) to friendly copy. */
+/** Deliberately excludes response bodies and arbitrary network errors. */
 export class YnabApiError extends Error {
-  constructor(
-    readonly status: number,
-    body: string,
-  ) {
-    super(`YNAB API ${status}: ${body}`);
+  constructor(readonly status: number) {
+    super(status === 429
+      ? "YNAB request limit reached. Wait before trying again."
+      : status === 403
+        ? "YNAB denied access. Check your subscription and token permissions."
+        : status === 404
+          ? "This YNAB budget or transaction is no longer available."
+          : `YNAB request failed (HTTP ${status}). Try again later.`);
   }
 }
 
-async function ynabFetch<T = unknown>(path: string, options?: RequestInit): Promise<T> {
-  // First attempt with the (possibly cached) access token.
-  let token = await getValidAccessToken();
-  let response = await sendRequest(path, token, options);
-
-  // YNAB-side expiry can race our cached expiresAt — one forced refresh + retry.
-  if (response.status === 401) {
-    // Force refresh by clearing the cached expiry, then re-fetching the token.
-    // `getValidAccessToken` will hit /oauth/refresh because expiresAt < now.
-    await saveSettings({ accessTokenExpiresAt: 0 });
-    token = await getValidAccessToken();
-    response = await sendRequest(path, token, options);
+async function ynabFetch<T = unknown>(path: string, options?: RequestInit, suppliedToken?: string,
+  scope?: typeof CANADIAN_READ | typeof REVIEW_WRITE, beforeSend?: (token: string) => void): Promise<T> {
+  const method = options?.method ?? "GET";
+  const allowedRead = method === "GET" &&
+    (path === "/plans" || /^\/plans\/[^/]+\/categories$/.test(path) ||
+      (scope === CANADIAN_READ && (/^\/plans\/[^/]+\/accounts$/.test(path) ||
+        /^\/plans\/[^/]+\/accounts\/[^/]+\/transactions\?since_date=\d{4}-\d{2}-\d{2}$/.test(path))));
+  const allowedReviewedWrite = method === "PUT" && scope === REVIEW_WRITE && beforeSend !== undefined &&
+    /^\/plans\/[\w-]+\/transactions\/[\w-]+$/.test(path);
+  if (!allowedRead && !allowedReviewedWrite) throw new Error(CONNECTION_CHECK_MESSAGE);
+  options?.signal?.throwIfAborted();
+  const token = suppliedToken ?? await getValidAccessToken();
+  options?.signal?.throwIfAborted();
+  // The connection can change while the token read awaits IndexedDB.
+  beforeSend?.(token);
+  let response: Response;
+  try {
+    response = await fetch(`${BASE_URL}${path}`, {
+      ...options,
+      // A redirect must never forward a credential to another origin.
+      redirect: "error",
+      credentials: "omit",
+      headers: {
+        ...options?.headers,
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+    });
+  } catch {
+    options?.signal?.throwIfAborted();
+    throw new Error("Could not reach YNAB. Check your connection and try again.");
   }
-
-  if (!response.ok) {
-    const body = await response.text().catch(() => "");
-    throw new YnabApiError(response.status, body);
+  options?.signal?.throwIfAborted();
+  // A personal token is never refreshed or retried after rejection.
+  if (response.status === 401) throw new NeedsReauthError();
+  if (!response.ok) throw new YnabApiError(response.status);
+  try {
+    const data = await response.json() as T;
+    options?.signal?.throwIfAborted();
+    return data;
+  } catch {
+    options?.signal?.throwIfAborted();
+    throw new Error("YNAB returned an unreadable response. Try again.");
   }
-  return response.json() as Promise<T>;
-}
-
-async function sendRequest(path: string, token: string, options?: RequestInit): Promise<Response> {
-  return fetch(`${BASE_URL}${path}`, {
-    ...options,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-      ...options?.headers,
-    },
-  });
 }
 
 export interface YnabPlan {
@@ -75,89 +95,144 @@ export interface YnabPlan {
   name: string;
 }
 
-/**
- * Resolve the single budget the user chose on YNAB's consent screen.
- *
- * Relies on the OAuth app having "default plan selection" enabled: YNAB then
- * prompts the user to pick a default plan at authorization and accepts the
- * literal `default` in place of a plan id. We must NOT list `/plans` and pick
- * one ourselves — that endpoint returns *every* budget the token can see, in an
- * order unrelated to the user's choice, so taking `[0]` silently connects the
- * wrong budget for anyone with more than one. We resolve `default` to its
- * concrete id/name and store that, pinning to the chosen budget.
- */
-export async function getDefaultPlan(): Promise<YnabPlan> {
-  const { data } = await ynabFetch<YnabApiResponse<{ plan: YnabPlan }>>("/plans/default");
-  return { id: data.plan.id, name: data.plan.name };
+/** A supplied token is used only by background onboarding validation. Never
+ * choose the first budget or rely on OAuth's default-plan selection. */
+export async function getPlans(suppliedToken?: string, signal?: AbortSignal): Promise<YnabPlan[]> {
+  const payload = await ynabFetch<YnabApiResponse<{ plans: YnabPlan[] }>>("/plans", { signal }, suppliedToken);
+  const plans = payload?.data?.plans;
+  if (!Array.isArray(plans) || plans.some((p) => !p || typeof p.id !== "string" || !p.id || typeof p.name !== "string")) {
+    throw new Error("YNAB returned an unreadable budget list. Try again.");
+  }
+  return plans.map((p) => ({ id: p.id, name: p.name }));
 }
 
-/**
- * Every budget the OAuth token can access. Used only by the Settings budget
- * switcher, where the user *explicitly* picks one — unlike onboarding, which
- * must never enumerate and auto-pick (that was the wrong-budget bug). The token
- * spans all budgets even with default plan selection enabled, so this lets a
- * user correct or change their connected budget in place.
- */
-export async function getPlans(): Promise<YnabPlan[]> {
-  const { data } = await ynabFetch<YnabApiResponse<{ plans: YnabPlan[] }>>("/plans");
-  return data.plans.map((p) => ({ id: p.id, name: p.name }));
-}
-
-export async function getCategories(planId: string): Promise<Category[]> {
-  const { data } = await ynabFetch<YnabApiResponse<{ category_groups: YnabCategoryGroup[] }>>(
-    `/plans/${planId}/categories`,
+export async function getCategories(planId: string, signal?: AbortSignal): Promise<Category[]> {
+  const payload = await ynabFetch<YnabApiResponse<{ category_groups: YnabCategoryGroup[] }>>(
+    `/plans/${encodeURIComponent(planId)}/categories`, { signal },
   );
-  return data.category_groups
-    .filter((g) => isVisible(g) && g.name !== INTERNAL_CATEGORY_GROUP)
-    .flatMap((g) => g.categories.filter(isVisible).map((c) => ({ id: c.id, name: c.name, groupName: g.name })));
+  const groups = payload?.data?.category_groups;
+  const invalid = () => new Error("YNAB returned an unreadable category list. Refresh categories.");
+  const flag = (value: unknown) => typeof value === "boolean";
+  if (!Array.isArray(groups) || groups.length > 1000) throw invalid();
+  const result: Category[] = [], ids = new Set<string>();
+  for (const group of groups) {
+    if (!group || typeof group.name !== "string" || !flag(group.hidden) || !flag(group.deleted) || !Array.isArray(group.categories)) throw invalid();
+    if (!isVisible(group) || group.name === INTERNAL_CATEGORY_GROUP) continue;
+    for (const category of group.categories) {
+      if (!category || !flag(category.hidden) || !flag(category.deleted)) throw invalid();
+      if (!isVisible(category)) continue;
+      if (typeof category.id !== "string" || !/^[\w-]+$/.test(category.id) || ids.has(category.id) ||
+          typeof category.name !== "string" || !category.name.trim() || category.name.length > 1000 || result.length >= 10000) throw invalid();
+      ids.add(category.id);
+      result.push({ id: category.id, name: category.name, groupName: group.name });
+    }
+  }
+  return result;
 }
 
-/** YNAB's `type` filter only accepts one value per request, and a transaction can be
- *  uncategorized without being unapproved (or vice versa) — so we fetch both and
- *  dedupe by id rather than missing either set. */
-export async function getUnapprovedTransactions(planId: string): Promise<YnabTransaction[]> {
-  const [unapproved, uncategorized] = await Promise.all([
-    ynabFetch<YnabApiResponse<{ transactions: YnabTransaction[] }>>(
-      `/plans/${planId}/transactions?type=unapproved`,
-    ),
-    ynabFetch<YnabApiResponse<{ transactions: YnabTransaction[] }>>(
-      `/plans/${planId}/transactions?type=uncategorized`,
-    ),
-  ]);
-  const byId = new Map(
-    [...unapproved.data.transactions, ...uncategorized.data.transactions].map((tx) => [tx.id, tx]),
-  );
-  return [...byId.values()];
+// Preserve the typed authentication error at the transport boundary.
+export { NeedsReauthError } from "./auth";
+
+async function readCanadianTestCandidate(planId: string, date: string, cents: number, signal?: AbortSignal, report?: (stage: CanadianPreviewFailure) => void, allowCategorized=false) {
+  try {
+  report?.("candidate-date");
+  const parsed = new Date(`${date}T00:00:00Z`); const age = Date.now() - parsed.getTime();
+  if (!/^[\w-]+$/.test(planId) || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(age) ||
+    parsed.toISOString().slice(0, 10) !== date || age < -86400000 ||
+    !Number.isSafeInteger(cents) || cents <= 0 || !Number.isSafeInteger(cents * 10)) throw new Error("Invalid Canadian test candidate.");
+  report?.("candidate-account");
+  const base = `/plans/${encodeURIComponent(planId)}`;
+  const accounts = await ynabFetch<YnabApiResponse<{ accounts: Array<{ id: string; name: string; type: string; on_budget: boolean; closed: boolean; deleted: boolean; direct_import_linked?: boolean }> }>>(`${base}/accounts`, { signal }, undefined, CANADIAN_READ);
+  if (!Array.isArray(accounts?.data?.accounts)) throw new Error("Unreadable test accounts.");
+  const matches = accounts.data.accounts.filter((a) => a?.name === "Lineitem Test" && a.deleted === false);
+  if (matches.length !== 1) throw new Error("Expected one Lineitem Test account.");
+  const a = matches[0]!;
+  if (typeof a.id !== "string" || !/^[\w-]+$/.test(a.id) || a.type !== "cash" || a.on_budget !== true || a.closed !== false ||
+    (a.direct_import_linked !== undefined && a.direct_import_linked !== false)) throw new Error("Lineitem Test must remain an open unlinked Cash account.");
+  report?.("candidate-transactions");
+  const payload = await ynabFetch<YnabApiResponse<{ transactions: Array<{ id: string; approved: boolean; cleared: string; memo: string | null; payee_id: string | null; flag_color: string | null; account_id: string; date: string; amount: number; payee_name?: string | null; category_id?: string | null; deleted: boolean; subtransactions: unknown[]; transfer_account_id?: string | null; transfer_transaction_id?: string | null; matched_transaction_id?: string | null; import_id?: string | null }> }>>(`${base}/accounts/${encodeURIComponent(a.id)}/transactions?since_date=${date}`, { signal }, undefined, CANADIAN_READ);
+  if (!Array.isArray(payload?.data?.transactions)) throw new Error("Unreadable test transactions.");
+  const candidates = payload.data.transactions.filter((t) => t?.deleted === false && t.date === date && t.amount === -cents * 10);
+  if (candidates.length !== 1) {
+    report?.(candidates.length === 0 ? "candidate-not-found" : "candidate-ambiguous");
+    throw new Error("Expected exactly one transaction for the chosen date and amount.");
+  }
+  report?.("candidate-eligibility");
+  const t = candidates[0]!;
+  if (!allowCategorized && Array.isArray(t.subtransactions) && t.subtransactions.length) throw new Error("The matching transaction is already split.");
+  if (!allowCategorized && typeof t.category_id === "string") throw new Error("The matching transaction already has a category.");
+  if (t.account_id !== a.id || (!allowCategorized && t.category_id !== null) || !(t.category_id === null || typeof t.category_id === "string") || !Array.isArray(t.subtransactions) || (!allowCategorized && t.subtransactions.length) ||
+    typeof t.payee_name !== "string" || !/^amazon(?:\.ca)?(?:\b|[ *])/i.test(t.payee_name) ||
+    t.transfer_account_id != null || t.transfer_transaction_id != null || t.import_id != null || t.matched_transaction_id != null) throw new Error("The candidate must be an uncategorized, unsplit manual Amazon purchase.");
+  signal?.throwIfAborted();
+  return { account: a, transaction: t };
+  } catch (error) {
+    if (error instanceof NeedsReauthError) report?.("candidate-auth");
+    else if (error instanceof YnabApiError && error.status === 429) report?.("candidate-rate-limit");
+    throw error;
+  }
 }
 
-/**
- * Fetch all transactions on or after `sinceDate` (ISO YYYY-MM-DD). Used by
- * the past-order backfill flow; returns approved and unapproved alike.
- */
-export async function getTransactionsSince(planId: string, sinceDate: string): Promise<YnabTransaction[]> {
-  const { data } = await ynabFetch<YnabApiResponse<{ transactions: YnabTransaction[] }>>(
-    `/plans/${planId}/transactions?since_date=${sinceDate}`,
-  );
-  return data.transactions;
+
+/** Existing read-only callers intentionally receive no target identifiers. */
+export async function findCanadianTestCandidate(planId: string, date: string, cents: number, signal?: AbortSignal, report?: (stage: CanadianPreviewFailure) => void): Promise<void> {
+  await readCanadianTestCandidate(planId, date, cents, signal, report);
 }
 
-export interface YnabTransactionUpdate {
-  category_id?: string | null;
-  approved?: boolean;
-  memo?: string | null;
-  subtransactions?: Array<{
-    amount: number;
-    category_id: string | null;
-    memo: string | null;
-  }>;
+/** Background-only snapshot for a reviewed amount; still confined to Lineitem Test. */
+export async function getReviewedTestTarget(planId:string,date:string,cents:number,signal:AbortSignal,report?:(stage:CanadianPreviewFailure)=>void) {
+  const { account, transaction: t } = await readCanadianTestCandidate(planId, date, cents, signal, report);
+  return reviewedTargetDetails(account,t);
 }
-
-export async function updateTransaction(planId: string, transactionId: string, update: YnabTransactionUpdate): Promise<void> {
-  await ynabFetch(`/plans/${planId}/transactions/${transactionId}`, {
-    method: "PUT",
-    body: JSON.stringify({ transaction: update }),
-  });
+/** Read-only inspection allows saved rows to be preserved when resuming an order.
+ * Write helpers still require the strict uncategorized target reader above. */
+export async function inspectReviewedTestCharge(planId:string,date:string,cents:number,signal:AbortSignal,report?:(stage:CanadianPreviewFailure)=>void){
+ const {account,transaction}=await readCanadianTestCandidate(planId,date,cents,signal,report,true);
+ return {...reviewedTargetDetails(account,transaction),eligible:transaction.category_id===null&&transaction.subtransactions.length===0};
 }
+function reviewedTargetDetails(account:Awaited<ReturnType<typeof readCanadianTestCandidate>>['account'],t:Awaited<ReturnType<typeof readCanadianTestCandidate>>['transaction']){
+  if (typeof t.id !== "string" || !/^[\w-]+$/.test(t.id) || typeof t.approved !== "boolean" ||
+      !["uncleared", "cleared"].includes(t.cleared) || !(t.memo === null || typeof t.memo === "string") ||
+      !(t.payee_id === null || typeof t.payee_id === "string") ||
+      !(t.flag_color === null || typeof t.flag_color === "string")) throw new Error("The test target is incomplete or reconciled.");
+  return { transactionId: t.id, accountId: account.id, accountName: account.name, date: t.date,
+    amount: t.amount, payeeName: t.payee_name!, payeeId: t.payee_id, memo: t.memo,
+    approved: t.approved, cleared: t.cleared, flagColor: t.flag_color };
+}
+export type CanadianTestTarget = Awaited<ReturnType<typeof getReviewedTestTarget>>;
+export type CanadianTestLine = { categoryId: string; categoryName: string; amountMilliunits: number; memo: null };
 
-// Re-export NeedsReauthError so handlers in background.ts can catch it.
-export { NeedsReauthError } from "./oauth";
+/** Only the reviewed single-target helper owns this private write capability. */
+export async function writeReviewedTestSplit(planId:string,target:CanadianTestTarget,lines:CanadianTestLine[],signal:AbortSignal,beforeSend:(token:string)=>void,validateContext:()=>Promise<void>):Promise<void>{
+ if(!lines.length||lines.length>202||lines.some(l=>!/^[\w-]+$/.test(l.categoryId)||!Number.isSafeInteger(l.amountMilliunits)||l.amountMilliunits>0||l.memo!==null)||new Set(lines.map(l=>l.categoryId)).size!==lines.length||!Number.isSafeInteger(target.amount)||target.amount>=0||lines.reduce((n,l)=>n+BigInt(l.amountMilliunits),BigInt(0))!==BigInt(target.amount))throw Error("Invalid reviewed split.");
+  // Stored plan labels can become stale after a rename. Recheck the actual
+  // destination immediately before the guarded target/context preflight.
+  const plans = await getPlans(undefined, signal);
+  if (plans.filter(plan => plan.id === planId && plan.name === "Test Plan").length !== 1 ||
+      plans.filter(plan => plan.id === planId).length !== 1) throw new Error("The destination must still be Test Plan.");
+  const fresh = await getReviewedTestTarget(planId, target.date, -target.amount / 10, signal);
+  if (JSON.stringify(fresh) !== JSON.stringify(target)) throw new Error("The test transaction changed.");
+  await validateContext(); signal.throwIfAborted();
+  const result = await ynabFetch<YnabApiResponse<{ transaction: {
+    category_id: string | null; id: string; account_id: string; date: string; amount: number; memo: string | null;
+    payee_name: string; payee_id: string | null; cleared: string; approved: boolean; deleted: boolean; flag_color: string | null;
+    transfer_account_id?: string | null; transfer_transaction_id?: string | null; import_id?: string | null; matched_transaction_id?: string | null;
+    subtransactions: Array<{ amount: number; category_id: string; memo: string | null; deleted: boolean; payee_id?: string | null; transfer_account_id?: string | null; transfer_transaction_id?: string | null }>;
+  } }>>(`/plans/${encodeURIComponent(planId)}/transactions/${encodeURIComponent(target.transactionId)}`, {
+    signal, method: "PUT", body: JSON.stringify({ transaction: lines.length===1 ? {category_id:lines[0]!.categoryId,approved:target.approved} : { category_id: null, approved: target.approved,
+      subtransactions: lines.map(l => ({ amount: l.amountMilliunits, category_id: l.categoryId, memo: null })) } }),
+  }, undefined, REVIEW_WRITE, beforeSend);
+  const t = result?.data?.transaction;
+  if (!t || t.id !== target.transactionId || t.account_id !== target.accountId || t.date !== target.date ||
+      t.amount !== target.amount || t.memo !== target.memo || t.payee_name !== target.payeeName || t.payee_id !== target.payeeId ||
+      t.cleared !== target.cleared || t.approved !== target.approved || t.flag_color !== target.flagColor || t.deleted !== false ||
+      t.transfer_account_id != null || t.transfer_transaction_id != null || t.import_id != null || t.matched_transaction_id != null ||
+      !Array.isArray(t.subtransactions)) throw new Error("Could not verify the Canadian test response.");
+  if(t.subtransactions.some(l=>!l||typeof l.deleted!=="boolean"))throw Error("Unreadable saved split.");
+  const active = t.subtransactions.filter(l => l.deleted === false);
+  if(lines.length===1){if(t.category_id!==lines[0]!.categoryId||active.length!==0)throw Error("Could not verify saved category.");return;}
+  if (active.length !== lines.length || active.some(l => l.payee_id != null || l.transfer_account_id != null || l.transfer_transaction_id != null) ||
+      !lines.every(l => active.filter(a => a.category_id === l.categoryId && a.amount === l.amountMilliunits && a.memo === null).length === 1)) {
+    throw new Error("Could not verify the Canadian test split.");
+  }
+}

@@ -22,5 +22,9 @@ export const Connect: Story = { args: { phase: "connect" } };
 export const Connecting: Story = { args: { phase: "connecting" } };
 export const Saving: Story = { args: { phase: "saving" } };
 export const ErrorState: Story = {
-  args: { phase: "error", error: "Authorization was denied. Try again." },
+  args: { phase: "error", error: "YNAB could not validate your token. Try again." },
+};
+
+export const ChooseBudget: Story = {
+  args: { phase: "picking", hasToken: true, plans: [{ id: "test-budget", name: "Extension Test Budget" }], selectedId: "" },
 };
