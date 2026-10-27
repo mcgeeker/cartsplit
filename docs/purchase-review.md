@@ -1,217 +1,138 @@
-# Amazon.ca review and approved changes
+# Review an Amazon.ca purchase
 
-This workflow operates in the **YNAB plan you select**, which must use CAD.
-In **Connection settings → Change YNAB Plan**, choose your actual plan or a test
-plan without removing the saved local token. The new plan's categories are loaded
-before switching; learning and session receipts remain scoped to their original
-plan. It does not run automatic sync, bulk approval or backfill.
+Use CartSplit to categorize an Amazon.ca order in your selected CAD YNAB plan.
+**YNAB changes only when you approve a prepared proposal and save it.** Review
+and preparation are read-only.
 
-For an order containing **one product row**, CartSplit uses a simpler entry: choose
-or check that product's category and click **Prepare changes**. The full card amount,
-after all discounts, gift funding, fees, shipping and tax, goes to that category.
-Multiple units of the same product are included. Adjustment distribution, extra fee
-categories, quantity confirmation and allocation-policy controls are unnecessary and
-hidden; **Charge breakdown** remains available. Exact quantity/price/subtotal and
-funding checks still run. The prepared proposal still requires separate final approval
-before Save. For several matched card charges belonging to that one product, select
-one **Payment to prepare** at a time; each stays separate and needs its own approval.
+## Review and save
 
-The detailed allocation steps below apply to orders with several product rows.
+1. **Open the order.** Select its Amazon.ca **Order details** tab. Keep an Amazon
+   **Transactions/Your Payments** tab open in the same Firefox window. If needed,
+   use **Open Amazon Transactions/Payments**, then return to Order details.
+2. **Read the purchase.** Click **Review selected order**. CartSplit reads the
+   items and payments, finds the matching YNAB purchase and suggests categories.
+3. **Check the categories and totals.** Correct any suggestions and fill in blank
+   categories. For several products, confirm item totals where requested, review
+   [adjustments](#adjustments-for-orders-with-several-products) and accept the
+   displayed allocation policy. For one product, its category receives the full
+   card payment, including all units and order adjustments.
+4. **Prepare the proposal.** Click **Prepare changes**. Check the **plan, account,
+   YNAB date, payment amount and category amounts**. If Amazon's payment date
+   differs, both dates appear. Saving keeps the original YNAB date.
+5. **Approve and save once.** If everything is correct, tick the separate final
+   approval and click **Save approved changes once** within five minutes. After
+   the verified success message, inspect the transaction in YNAB.
 
-1. Select the Canadian Order details tab and keep one Canadian Transactions tab
-   open in the same window. If none is open, **Open Amazon Transactions** opens
-   it in an active tab; select Order details again before reviewing. Click **Review selected order**. Item count, order adjustments and payment data
-   are discovered from the pages. CartSplit first matches the linked Amazon payment's
-   exact card amount against Amazon transactions dated **up to 2 calendar days before
-   or after the Amazon payment date**, inclusive, in the selected plan's
-   open, on-budget Cash, Checking, Savings and Credit Card accounts. Linked accounts
-   and imported/matched purchases are supported. Only one complete, uncategorized,
-   unsplit, nonreconciled Amazon outflow without transfers is eligible. Missing,
-   duplicate, already categorized/split or unreadable targets stop Review with a
-   specific message before allocation/category suggestions. There is no 90-day
-   age cutoff; date validity and the existing future-date check remain. This action
-   makes read-only YNAB requests and does not change YNAB.
-   An exact-date or nearer-date match is not preferred when several transactions
-   match the amount and Amazon payee within the window; review stops for ambiguity.
-   Gift-card funding is reconciled separately from card charges. If one unique
-   order-linked payment equals the complete card remainder, CartSplit can also
-   accept older unlabeled rows when ALL remaining linked funding exactly equals
-   the order's declared gift contribution, has matching currency markings and
-   contains no explicitly identified extra card charge. The card still requires
-   its own unique eligible YNAB match. Ambiguous full-amount candidates, unexplained
-   extras and unknown partial-shipment combinations remain blocked.
-   Explicit gift-method labels continue to support separate funding reconciliation.
-   After an update that changes page reading, refresh both Amazon tabs after
-   reloading CartSplit before Review; this grouping fix also accepts the old format.
-   For a split shipment, CartSplit groups purchase charges explicitly linked to
-   the same order number on the current Transactions page. Their sum must equal
-   the order’s card total, and each date/amount must identify a different complete
-   Amazon transaction. Saved categorized/split charges are displayed as
-   preserved; only uncategorized, unsplit charges can be selected for changes.
-   Incomplete pages, indistinguishable duplicate rows, more than 20 charges and
-   missing/incomplete/otherwise ineligible targets stop Review before suggestions.
-2. Check displayed quantities and item totals. CartSplit distinguishes unit prices
-   from full-line prices only when one interpretation exactly matches Amazon’s
-   item subtotal; it shows quantity × price when multiplication is required.
-   Ambiguous or inconsistent interpretations remain blocked. Confirm the shown
-   full item total for quantities greater than one or missing quantities. Review the product-category
-   suggestions and change them if needed. Choose a category for each unsuggested item
-   and review **Adjustments**. For each detected fee, net shipping charge, coupon or
-   gift contribution, choose **All items** or **Selected items**. Selected items
-   shows a checkbox for each whole product row; each checked row includes all its
-   units. These destination modes are exclusive. Positive fee/shipping charges
-   also offer **Separate category**, which adds their payment/category row below.
-   Choose **Equally** or **By item value** for distributed adjustments. Fees and
-   net shipping default to equal distribution; coupons and gift funding default
-   to item value. Review the updated item estimates and exact card total, then
-   check the allocation-policy box.
-   Coupons reduce product cost before tax. Positive charges are allocated using
-   discounted product values (or equally); estimated tax follows adjusted pre-tax
-   values. Gift funding reduces gross card-funded shares after tax and does not
-   reduce purchase price. All/selected targets are product rows; separate charge
-   rows retain their own category and do not receive coupon/gift reductions.
-   Free Shipping credit offsets shipping first; controls allocate only the net
-   shipping amount, never that credit a second time. Discounts use the existing
-   detected coupon-savings field; this does not infer additional undisclosed offers.
-   Empty selections, invalid policies, excessive per-item reductions and funding
-   mismatches stop with a specific message. A zero-value proportional target needs
-   an explicit different choice. No reduction is silently capped or reassigned.
-   Integer-cent rounding uses largest remainders, with displayed order breaking ties.
-3. Click **Prepare changes**. Fresh page, category and transaction checks must
-   find one uncategorized, unsplit Amazon purchase with the exact card amount within
-   the same ±2-day window in the selected plan. Already-saved splits are rejected
-   and preserved. Review the actual **plan and account names**, before/after category
-   amounts and **YNAB date**. When it differs, the proposal also shows the Amazon
-   payment date. **Saving preserves the original YNAB date**; the tolerance only
-   affects matching. Every preflight stays anchored to the original Amazon date.
-4. Only if the proposal is correct, check the separate final approval and click
-   **Save approved changes once** within five minutes. Inspect the transaction
-   in YNAB after the verified-response success message.
+A save updates the selected transaction's category or split. Its total, account,
+date and other existing transaction details stay unchanged. Lines with the same
+category are combined; one resulting category produces a simple category update.
 
-For **split shipments**, the same product suggestions and quantity confirmations
-are available. Choose a **Payment** and category for each whole product row and
-separate-category additional charge. Distributed adjustments use the selected product
-rows and need no separate payment/category. A row includes all its units; dividing a single row's units
-between payments is not supported. Each payment needs at least one assigned row.
-Each actual payment total stays fixed. The same staged adjustment calculator
-produces order-level card-funded values; those values become weights within each
-payment's assigned rows. This applies the user's choices within payment boundaries,
-without moving money between payments or claiming actual shipment-specific tax,
-gift or coupon ownership. An individual payment's fixed amount takes precedence
-when its assigned estimates differ. Product adjustment shares shown are order-level
-estimates, not a charge-specific accounting of each adjustment. A payment assigned
-only zero-funded rows is blocked. The order subtotal, funding and charge-total checks
-still pass independently; a mismatched order total is never rescaled into agreement.
+If the order has several card payments, follow
+[Orders with several payments](#orders-with-several-payments) before preparing.
 
-Choose **Payment to prepare**, accept the allocation policy, then **Prepare selected
-payment**. The proposal shows only that payment's date, amount and category lines.
-Final approval saves that single transaction once. Review it in YNAB before choosing
-the next payment; no other transaction is written automatically. Assignments,
-categories, adjustment policies and quantity confirmations become fixed within the current review after
-its first verified save. Each remaining payment needs its own policy/final approval.
-On a fresh Review, saved payments remain visible but cannot be selected for saving.
-No allocation proof is persisted between reviews; confirm the assignments again.
+## What can CartSplit match?
 
-Only products belonging to the verified saved payment teach the local category
-history. Conflicting chosen categories for the same product across payments are
-conservatively forgotten rather than storing an unconfirmed payment's choice.
-A local learning failure still reports financial success, marks the payment saved
-and retains its no-retry protection. An unconfirmed financial write invalidates the
-current review and remains locked in the sidebar: inspect YNAB and do not retry.
+Use English Amazon.ca pages and a **CAD YNAB plan**. Choose your actual plan or a
+test plan under **Connection settings → Change YNAB Plan**; you do not need to
+remove your saved token.
 
-The sidebar follows the selected order. Opening another order, including in the
-same tab, shows that order's starting screen; other pages show a select-order prompt.
-Navigation does not automatically review, prepare or save anything. Unfinished choices
-stay with their original order while the sidebar remains open, within the existing
-review expiry. Switching away or moving to a duplicate tab clears prepared approval
-and final consent. Return to the original bound tab/URL and prepare again before saving.
-Partial split orders retain saved progress and their locked assignments/categories.
+| Requirement | Supported purchases |
+| --- | --- |
+| Account | Open, on-budget **Cash, Checking, Savings or Credit Card** accounts. Linked accounts and imported/matched purchases are supported. |
+| Transaction | An **Amazon/AMZN outflow** that is uncategorized, unsplit, not reconciled and not a transfer. |
+| Amount and date | The **exact card amount**, dated up to **2 calendar days before or after** Amazon's payment date. |
 
-A verified completed save shows a compact **Saved to YNAB** receipt with date, amount
-and categories. Returning to that order restores its read-only receipt, including
-after closing/reopening the sidebar. These are receipts for this session's saves,
-not a fresh read of YNAB. Up to 100 completed order receipts are held in background
-memory; partial/unconfirmed results are retained. Firefox or extension background
-restart clears them. Earlier saves are not reconstructed or repeated to create receipts.
-No receipt data is persisted or used for category learning.
+There must be **one matching YNAB transaction per payment**. If several match,
+CartSplit stops; it does not pick the closest date. Gift-card funding is checked
+separately from the amount charged to your card.
 
-A save in progress remains tied to its order when switching pages; it is never
-retried automatically. An unconfirmed result keeps its inspect-YNAB/no-retry warning
-on that order across navigation and sidebar reopening. Another order can show its own
-starting screen. Closing the sidebar still cancels unfinished drafts; on reopening,
-saved/partial progress remains visible but new work needs a fresh explicit Review.
+## Adjustments for orders with several products
 
-Newly returned reviews, prepared proposals and action feedback scroll into view.
-Expanded information sections also reveal their beginning. Scrolling respects reduced
-motion and keeps keyboard focus unchanged; editing choices does not repeatedly scroll.
+Open **Charge breakdown** to inspect tax, shipping, fees, discounts and gift
+funding. Under **Adjustments**, choose where each detected adjustment belongs:
 
-Preparing is read-only. Saving changes only the selected transaction's category
-or split and retains its existing approval status. The parent amount, account,
-date, payee, memo, cleared status, flag and import/match identifiers are preserved.
-Missing/non-CAD currency, inaccessible plans and duplicate account or target identities
-stop the operation. A changed plan name, account, import match or parent transaction
-requires a new review. Split memos are empty;
-product titles are not uploaded by this save. Lines sharing a category are
-grouped. A single resulting category uses a direct category update.
+| Choice | Use it to… |
+| --- | --- |
+| **All items** | Share the amount across every product row. |
+| **Selected items** | Share it across the product rows you check. Each row includes all its units. |
+| **Separate category** | Give a positive fee or net shipping charge its own category. |
 
-Category suggestions use three stages in order:
+For shared amounts, choose **Equally** or **By item value**. Fees and net shipping
+default to equal shares; coupons and gift funding default to item value.
 
-1. Your previously confirmed category for the exact product in this YNAB Plan.
-2. A sufficiently strong, unambiguous similarity match to products confirmed by
-   verified CartSplit saves in this Plan.
-3. The existing local embedding model compares the product title with current
-   category and group names. This is a semantic similarity guess, not generative
-   reasoning. Weak or closely competing results leave the category blank.
+Coupons reduce product cost before estimated tax. Gift funding reduces the amount
+paid by card after tax. Free Shipping credit offsets shipping first, so only the
+net shipping cost is allocated. Separate fee/shipping rows do not receive coupon
+or gift reductions.
 
-Each suggestion is labeled by its origin and can be changed. Current visible
-categories are checked before suggesting; preparation/save still freshly validate
-selected category IDs and names. Similarity scores are heuristics, not calibrated
-probabilities. Ambiguous names such as personal catch-all categories may need your
-manual choice. No suggestion alone trains the history.
+These are estimates of how costs are shared. Check the displayed category amounts
+before accepting the policy. Inconsistent totals or invalid choices stop preparation.
 
-The existing bge-small-en-v1.5 quantized model downloads on first use if not cached.
-It runs locally in Firefox; there is no cloud AI account or per-request inference
-bill. Product/category text is not sent to an inference service. Model-file requests
-still contact the existing Hugging Face download hosts. Initial download/loading can
-make Review take longer; Cancel review remains available. Inference already running
-may finish internally after cancellation, but its result cannot restore a canceled
-review or commit learning.
+## Orders with several payments
 
-After a verified save, exact product/category IDs and model-tagged product vectors
-are remembered locally for the connected YNAB Plan. Raw product titles and
-order/transaction identifiers are not stored by this feature. The vector pool is
-limited to 50 products per category and 500 per Plan; exact product choices survive
-vector eviction. Category-name vectors last only for the current Review. Legacy/model
-learning remains separate and is not imported or backfilled. Older exact-only records
-continue to work without vectors and gain vectors only on a future normal verified
-save; accepted transactions must not be saved again to populate history.
+Amazon may charge separately for split shipments. CartSplit keeps those YNAB
+transactions separate and saves **one payment at a time**.
 
-Corrections atomically replace choices and vectors. Conflicting choices for the same
-product within one order remove both. If the model is unavailable during learning,
-exact choices can still be committed and old vectors for corrected products are
-removed. Cancellation rolls back pending local writes; canceled or unconfirmed
-financial saves never train the cache. A local storage failure cannot turn a verified
-financial success into an uncertain result or permit another financial write. Clear
-learning using the existing Local data removal controls after disconnecting; removal
-covers all plans in this profile. No deletion is needed for acceptance testing.
+1. **Assign the rows.** For several products, choose a **Payment** and category
+   for each product and separate-category charge. Each payment needs at least one
+   row. A product row includes all its units; you cannot divide those units
+   between payments. Distributed adjustments follow their selected products.
+2. **Choose one payment.** Select **Payment to prepare**, accept the displayed
+   policy where shown, and click **Prepare selected payment**. For a single-product
+   order, choose its category and one payment; no row assignments are needed.
+3. **Review and save that payment.** Follow steps 4–5 above, then check it in YNAB
+   before preparing the next payment. Each payment needs separate final approval.
 
-**Cancel review** is available during the initial page read, after discovery,
-during preparation and while saving. Canceling a read/preparation clears the
-review, choices and consent without disconnecting YNAB. Late review/proposal
-replies are discarded and their grants revoked. Closing the sidebar during the
-initial read also cancels work before a review ID exists. Canceling a save keeps
-the screen locked with an unconfirmed-result instruction; it cannot undo a
-request already sent. A late response cannot restore approval or offer a retry.
+Each payment's exact amount stays fixed. Its division among assigned rows is an
+estimate, not proof of shipment-specific tax, coupon or gift amounts.
 
-Changing categories, adjustment destinations/methods/item selections or line-total confirmations, Cancel review, sidebar closure,
-Disconnect or a connection/budget change revokes approval. Review bindings
-expire after ten minutes; final proposals expire after five. A canceled or
-stale proposal cannot be reused. The actual send checks credentials, expiry
-and cancellation again after the last asynchronous reads.
+After the first verified save, assignments, categories and adjustment choices are
+fixed for the remaining payments in that review. Already categorized or split
+payments appear as **Preserved** and cannot be saved again.
 
-An error after send is **unconfirmed**: inspect YNAB and **do not retry or reload
-to retry**. The background blocks another attempt at that target for its current
-session. This is not durable exactly-once delivery; a background restart loses
-memory state. Separate preflight and write requests cannot prevent every
-concurrent remote edit. Do not edit the order, categories or transaction during
-the operation. Disconnect cannot undo a remotely accepted request.
+## If CartSplit stops
+
+| Message or situation | What to do |
+| --- | --- |
+| No matching YNAB purchase | Check the selected plan, account eligibility, exact card amount and ±2-day date window above. |
+| More than one match | Inspect the matching purchases in YNAB. CartSplit cannot choose safely; do not change dates or amounts just to force a match. |
+| Item totals or funding do not add up | Check quantities, prices and the complete Amazon payment details. CartSplit will not adjust a mismatched total to make it fit. |
+| Review or approval expired | Start a fresh review after ten minutes; prepare again if the five-minute final approval expired. |
+
+**Unconfirmed save: inspect YNAB and do not retry or reload to retry.** The request
+may already have succeeded. Canceling or disconnecting cannot undo a request
+already sent. Restarting Firefox or the extension clears its session warnings;
+it does not establish whether the purchase saved.
+
+If YNAB saving succeeded but local category learning failed, the purchase is still
+saved. Do not save it again to teach the category.
+
+## Canceling, switching orders and returning later
+
+**Cancel review** stops a read or preparation and clears its choices without
+disconnecting YNAB. Closing the sidebar cancels unfinished drafts. During a save,
+cancellation requires the unconfirmed-save precautions above.
+
+The sidebar follows the selected order. Switching away clears prepared approval;
+return to the original order tab and prepare again. Navigation never saves anything
+automatically. Saved or partially saved progress remains visible for the session.
+
+**Saved to YNAB** is a receipt for this session's verified saves, not a fresh read
+of YNAB. Receipts survive reopening the sidebar, but clear when Firefox or the
+extension restarts. Check YNAB for the current transaction.
+
+## Category suggestions and local data
+
+Suggestions use these sources in order:
+
+1. Your saved category for the same product in this plan.
+2. Similar products you previously categorized through verified CartSplit saves.
+3. A local model's comparison with your current category and group names.
+
+Every suggestion is editable. Uncertain matches stay blank. Only a verified save
+teaches future suggestions, and learning stays separate for each YNAB plan.
+
+The model runs in Firefox and downloads public model files on first use, which can
+make the first review slower. Product and category text is processed locally.
+For storage and privacy details, see [Technical design and privacy](architecture.md).
+To clear learned choices, follow [Remove local CartSplit data](local-data-removal.md).
