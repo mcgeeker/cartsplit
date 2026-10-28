@@ -41,8 +41,8 @@ Build the Firefox extension from the repository root. For everyday use, read
    Use a new, eligible uncategorized purchase for a manual check, and inspect each
    successful save in YNAB.
 
-A temporary add-on is removed when Firefox restarts. For permanent installation
-plans, see [Installation and maintenance](personal-installation.md).
+A temporary add-on is removed when Firefox restarts. For the available signed release and permanent installation
+instructions, see [Installation and maintenance](personal-installation.md).
 
 ## Toolchain
 

@@ -9,13 +9,14 @@ needs review and final approval.
 | I want to… | Read |
 | --- | --- |
 | Review a purchase and save categories | [Purchase review](purchase-review.md) |
-| Load CartSplit, plan a permanent install or manage updates | [Installation and maintenance](personal-installation.md) |
+| Install CartSplit, share it or manage updates | [Installation and maintenance](personal-installation.md) |
 | Understand privacy, storage and transaction safeguards | [Technical design and privacy](architecture.md) |
 | Remove cached or learned data from this Firefox profile | [Local-data removal](local-data-removal.md) |
 | Build or change the extension | [Developer guide](development.md) |
 
-A signed release is not available yet. Temporary development loading works;
-fresh installation packages and Mozilla signing are separate next steps.
+[CartSplit 1.4.1 is available as a Mozilla-signed Firefox download](https://github.com/mcgeeker/cartsplit/releases/tag/v1.4.1).
+Use the installation guide for everyday use; temporary loading is for development.
+Updates are installed manually.
 
 ## Historical records
 

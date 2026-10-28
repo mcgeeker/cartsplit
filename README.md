@@ -65,7 +65,14 @@ approval of financial changes.
 
 CartSplit is currently a **personal development project** for **Firefox,
 Amazon.ca, English pages and CAD**. You choose the YNAB plan, and every financial
-change requires review and approval. A signed, installable release is not yet available.
+change requires review and approval.
+
+**[Download the Mozilla-signed Firefox extension](https://github.com/mcgeeker/cartsplit/releases/tag/v1.4.1).**
+Install `cartsplit-1.4.1-signed.xpi` in the Firefox profile where you want to use it:
+open `about:addons` → gear → **Install Add-on From File**. Each user connects with
+their own YNAB token entered locally. No public Mozilla Add-ons listing is needed.
+See [installation and maintenance](docs/personal-installation.md) for setup,
+sharing and manual updates.
 
 ## Documentation
 
@@ -75,7 +82,7 @@ find a historical review.
 - [Developer guide](docs/development.md): build from source and load a development copy.
 - [Purchase review guide](docs/purchase-review.md): review and save one purchase.
 - [Technical design and privacy](docs/architecture.md): how data, local learning and approvals are handled.
-- [Installation and maintenance](docs/personal-installation.md): installation plans, updates and token management.
+- [Installation and maintenance](docs/personal-installation.md): signed installation, sharing, updates and token management.
 
 ## Credits and licence
 

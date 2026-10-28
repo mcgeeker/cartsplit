@@ -1,3 +1,4 @@
+import DataPrivacyNotice from "./DataPrivacyNotice";
 import { CONNECTION_CHECK_ONLY } from "@/lib/verification";
 import LocalDataSection from "./LocalDataSection";
 import { useState, type ReactNode } from "react";
@@ -32,6 +33,7 @@ export function OnboardingView({ phase, hasToken = false, plans = [], selectedId
         Connect directly to YNAB with your Personal Access Token, then choose a budget.
         Your token is stored locally in this Firefox profile and sent only to YNAB.
       </p>
+      <DataPrivacyNotice />
       {!hasToken && (phase === "connect" || phase === "error") && (
         <form className="flex flex-col gap-3" onSubmit={(event) => {
           event.preventDefault();

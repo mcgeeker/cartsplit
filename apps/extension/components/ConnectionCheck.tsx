@@ -1,3 +1,4 @@
+import DataPrivacyNotice from "./DataPrivacyNotice";
 import {scrollExpandedDetails} from "./useRevealScroll";
 import PurchaseReview from "./PurchaseReviewWorkspace";
 import LocalDataSection from "./LocalDataSection";
@@ -76,6 +77,7 @@ export default function ConnectionCheck({ plan, onDisconnect, onChangePlan }: { 
         {/* Remains enabled during a pending category request. */}
         <Button sm className="!w-full !min-h-[34px] !py-[7px]" variant="danger" onClick={disconnect}>Disconnect YNAB</Button>
         </div>
+        <DataPrivacyNotice />
         <LocalDataSection connected />
         <p className="text-[12.5px] text-faint">Disconnect removes this profile’s token. It does not revoke access at YNAB or erase cached learning data. To revoke token access at YNAB, open Manage YNAB Token and revoke the Personal Access Token there.</p>
       </div>

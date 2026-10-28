@@ -36,7 +36,7 @@ export default defineConfig({
   },
   manifest: ({ browser }) => ({
     name: "CartSplit",
-    description: "Match YNAB transactions to your Amazon.ca orders and split each charge into the right budget categories",
+    description: "Categorize Amazon.ca purchases in YNAB. Your token and approved changes go directly to YNAB, never to the CartSplit developer.",
     // This fork has its own Firefox identity; never reuse upstream identity.
     ...(browser === "firefox"
       ? {

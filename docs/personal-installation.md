@@ -1,9 +1,43 @@
 # Install and maintain CartSplit
 
-**Use the temporary development copy for now.** No signed, permanently installable
-CartSplit release is available. The source code is on
-[GitHub](https://github.com/mcgeeker/cartsplit); fresh installation packages and
-signing remain separate work.
+**[Download CartSplit 1.4.1](https://github.com/mcgeeker/cartsplit/releases/tag/v1.4.1)**
+for permanent installation in Firefox. Choose **cartsplit-1.4.1-signed.xpi** under
+Assets. Mozilla signs this unlisted add-on; it does not appear in public Add-ons
+search results. You do not need a developer account or build tools to install it.
+
+## Install the signed extension
+
+1. Download [cartsplit-1.4.1-signed.xpi](https://github.com/mcgeeker/cartsplit/releases/download/v1.4.1/cartsplit-1.4.1-signed.xpi).
+2. Open the Firefox profile where you want to use CartSplit. In `about:addons`,
+   choose the gear menu → **Install Add-on From File**.
+3. Select the signed XPI, review the permissions and choose **Add**.
+4. Open CartSplit's sidebar, enter your own YNAB token locally and choose your CAD plan.
+5. Restart Firefox and check that CartSplit and its connection remain available.
+   No financial save is needed to check installation.
+
+A **profile** has its own settings, connections and learning data. Installing in a
+test profile does not install CartSplit in your everyday profile. Repeat these steps
+in each profile where you want it; no connection or learning migration is provided.
+Permanent installation survives browser restarts. Do not disable signature checks.
+See [Mozilla's file-installation instructions](https://extensionworkshop.com/documentation/publish/install-self-distributed/).
+
+Your token and approved category changes go directly to YNAB. Nothing is sent to
+the CartSplit developer. Category learning stays in this Firefox profile. Model
+downloads contact Hugging Face without sending your token or purchase details.
+Firefox's standard data-collection wording includes transmission directly to YNAB;
+it does not mean the developer receives that information.
+
+## Share with a friend
+
+Send the [release page](https://github.com/mcgeeker/cartsplit/releases/tag/v1.4.1)
+or the signed XPI. The file contains code, not your token, profile or budget data.
+Each person installs it using the steps above and enters their own token locally.
+The supported scope remains Firefox, English Amazon.ca pages and CAD YNAB plans.
+
+For the exact source used to build 1.4.1, use **cartsplit-1.4.1-sources.zip** in the
+release's Assets. GitHub's automatic source archives for the existing v1.4.1 tag
+refer to the earlier published baseline; the attached source ZIP includes the
+accepted 1.4.1 privacy wording and build instructions.
 
 ## Load the current development build
 
@@ -49,39 +83,18 @@ for the distinction between reloading and permanent installation.
 CartSplit's add-on ID is `cartsplit@mcgeeker`. Firefox treats a different add-on ID
 as a separate installation; no credential or learning migration is implemented.
 
-## Permanent installation: planned
-
-Normal Firefox release and beta installations require a Mozilla-signed add-on,
-including unlisted self-distribution. An unlisted extension does not need a public
-store listing. See [Mozilla's signing overview](https://extensionworkshop.com/documentation/publish/signing-and-distribution-overview/).
-
-Before submission, prepare a fresh unsigned extension and matching source package,
-verify the source rebuild, then obtain authorization for signing. Mozilla requires
-[readable source and build instructions](https://extensionworkshop.com/documentation/publish/source-code-submission/)
-for bundled code. Use packages built and verified from the current source.
-
-Once a verified signed XPI (Firefox add-on file) is available:
-
-1. Open the Firefox profile where you want to use CartSplit.
-2. Open `about:addons` and choose the gear menu → **Install Add-on From File**.
-3. Select the signed XPI and review Firefox's permission request.
-4. Connect locally and check persistence after restarting Firefox, without a financial save.
-
-These are planned steps. Signing, permanent installation and transfer of existing
-profile data have not been verified. Do not disable signature checks to make a
-development build permanent. Mozilla documents
-[installation from a file](https://extensionworkshop.com/documentation/publish/install-self-distributed/).
-
 ## Updates and recovery
 
-There is no CartSplit update server or manifest `update_url`. The planned route is
-manual installation of signed updates; Mozilla also supports updates through a
-configured update URL or a later listed AMO version.
+There is no CartSplit update server or manifest `update_url`. Check
+[GitHub Releases](https://github.com/mcgeeker/cartsplit/releases) for new signed
+versions and install them manually in the same profile, without uninstalling.
+Publishing to GitHub does not automatically update installed copies. Mozilla also
+supports updates through a configured update URL or a later listed AMO version.
 See [self-distributed updates](https://extensionworkshop.com/documentation/publish/self-distribution/).
 
 | Task | Approach |
 | --- | --- |
-| Prepare an update | Increase the version, keep the same add-on ID, rebuild and verify fresh packages before authorized signing. Current source version: **1.4.0**. |
+| Prepare an update | Increase the version, keep the same add-on ID, rebuild and verify fresh packages before authorized signing. Current source version: **1.4.1**. |
 | Install a signed update | Use the same permanent profile without first uninstalling. Check storage compatibility as part of the update. |
 | A new version fails | Disable CartSplit in `about:addons` and investigate. Keep the last working signed file and source package. |
 | A save result is uncertain | Inspect YNAB. Disabling, restarting or reverting CartSplit cannot undo a sent write or make it safe to retry. |
