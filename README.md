@@ -69,8 +69,11 @@ change requires review and approval. A signed, installable release is not yet av
 
 ## Documentation
 
+Start with the [documentation index](docs/README.md) to choose a current guide or
+find a historical review.
+
 - [Developer guide](docs/development.md): build from source and load a development copy.
-- [Purchase review guide](docs/purchase-review.md): detailed instructions for using the extension.
+- [Purchase review guide](docs/purchase-review.md): review and save one purchase.
 - [Technical design and privacy](docs/architecture.md): how data, local learning and approvals are handled.
 - [Installation and maintenance](docs/personal-installation.md): installation plans, updates and token management.
 

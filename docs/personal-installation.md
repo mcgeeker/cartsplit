@@ -1,124 +1,105 @@
-# CartSplit personal installation and maintenance
+# Install and maintain CartSplit
 
-Status: development build. Source publication is separate from signing or
-distributing an installable extension. Signing, store submission, signed-package
-distribution and release jobs remain on hold. No permanently installable signed
-XPI has been produced.
+**Use the temporary development copy for now.** No signed, permanently installable
+CartSplit release is available. The source code is on
+[GitHub](https://github.com/mcgeeker/cartsplit); fresh installation packages and
+signing remain separate work.
 
-## What is prepared
+## Load the current development build
 
-Locally generated candidate directories under `artifacts/milestone-5/` contain an unsigned
-extension ZIP, source ZIP, SHA256 checksums, built-file hashes and a verification
-report. Older archives directly under `artifacts/milestone-5/` are historical drafts
-and must not be submitted. These generated packages are not tracked in Git.
-The source archive's `BUILD-README.md` contains the
-pinned tool versions and exact build commands. It includes the extension, shared
-UI, lockfile, licence and verification scripts; it excludes profiles, credentials,
-dependencies, model caches and generated output. See the adjacent verification
-report for actual rebuild evidence rather than assuming cross-platform identity.
+Build from source using the [developer guide](development.md), then set up a
+Firefox profile and load the extension as described below.
 
-Runtime scope is **Amazon.ca, English pages, CAD and the explicitly selected YNAB plan**.
-The owner has accepted the selected-plan workflow and posting-date allowance in
-Firefox. Fresh installation packages remain pending. Each save still requires an eligible target,
-review and deliberate approval. Unattended sync remains disabled.
-The extension keeps its own Firefox ID, `cartsplit@mcgeeker`.
+### Create or choose a profile
 
-The October 25 rename introduced a new Firefox identity.
-Its connection database is `cartsplit-connection`. Firefox treats this identity as
-a separate extension: existing credentials, learning and session state are not
-automatically transferred from an earlier installation. The existing profile's
-data and YNAB transactions are untouched. No credential migration is implemented.
-The repository is [mcgeeker/cartsplit](https://github.com/mcgeeker/cartsplit).
-Commands and file paths in this guide are relative to the checkout root.
+A Firefox **profile** has its own settings, sign-ins and extension data. Use a
+separate profile for the development build to keep it apart from your everyday
+browser setup. If you already have one for CartSplit, open that profile and skip
+to [Load the extension](#load-the-extension).
 
-## Current temporary installation
+To create one:
 
-The existing isolated test profile remains the development environment. Do not
-remove/reinstall it just to repeat accepted checks. When a new development build
-actually needs loading, use `about:debugging` → This Firefox → Load Temporary
-Add-on and choose `apps/extension/.output/firefox-mv2/manifest.json`. This is a
-development installation, separate from the planned signed installation. Never
-disable Firefox signature checks to make this candidate permanent.
+1. Open `about:profiles` in Firefox. Note the name of your everyday profile.
+2. Click **Create a New Profile** and follow the wizard. A name such as
+   **CartSplit Development** will help you recognize it.
+3. If the new profile becomes the default, click **Set as default profile** under
+   your everyday profile to keep your usual startup behavior.
+4. Under the CartSplit profile, click **Launch profile in new browser**.
 
-## Planned signed installation — requires separate authorization
+See [Mozilla's profile guide](https://support.mozilla.org/en-US/kb/profile-manager-create-remove-switch-firefox-profiles)
+for more detail. Continue in the new profile's Firefox window.
 
-Mozilla signing is required for normal Firefox distribution, including
-self-distributed extensions. The proposed route is unlisted self-distribution,
-with source and build instructions supplied for review; it does not require a
-public store listing. Uploading either ZIP is an external submission and remains
-unauthorized. See [Mozilla signing overview](https://extensionworkshop.com/documentation/publish/signing-and-distribution-overview/)
-and [source review requirements](https://extensionworkshop.com/documentation/publish/source-code-submission/).
+### Load the extension
 
-After explicit authorization and receipt of a signed XPI:
+1. Go to `about:debugging#/runtime/this-firefox` and choose **Load Temporary Add-on**.
+2. Select `apps/extension/.output/firefox-mv2/manifest.json`.
+3. Enter your token only in CartSplit's connection screen and choose your CAD YNAB plan.
 
-1. Keep the verified unsigned/source pair, checksums and returned signed XPI
-   together. Confirm the returned manifest still has the expected name, version
-   and ID before installation; signing changes the archive, so its hash differs.
-2. Use a dedicated permanent-installation Firefox profile for the first install.
-   This avoids relying on a temporary-to-permanent storage migration that has not
-   been verified. Keep the existing test profile intact; do not copy its token,
-   cache or purchase records into a release archive or another profile.
-3. Open `about:addons`, choose the gear menu → Install Add-on From File, select
-   the signed XPI, and review Firefox's permissions. Mozilla documents
-   [installation from file](https://support.mozilla.org/en-US/kb/find-and-install-add-ons-add-features-to-firefox).
-4. Enter any needed credential only in CartSplit's local connection screen.
-   Existing learning in the test profile will not appear in a new profile. Do not
-   seed data or repeat accepted transactions to populate it. A future installation
-   check should verify persistence after a Firefox restart without a financial save.
+The path starts at the repository root. The build tool generates `firefox-mv2`
+for **Firefox using Manifest Version 2**, the extension's configuration format.
+Everyone building the current fork uses this relative path; the folder name does
+not depend on your computer or Firefox profile.
 
-These are planned steps, not evidence that signing, migration or permanent
-installation has passed. Each financial save still requires review and explicit
-final consent in the selected plan. The prepared proposal identifies its plan and account.
+When updating an already loaded development build, use **Reload** on that page.
+Refresh the Amazon Order details and Transactions/Your Payments tabs after a
+reader update. Temporary add-ons must be loaded again after Firefox restarts.
+See [Mozilla's temporary-loading guide](https://extensionworkshop.com/documentation/develop/temporary-installation-in-firefox/)
+for the distinction between reloading and permanent installation.
 
-## Updates
+CartSplit's add-on ID is `cartsplit@mcgeeker`. Firefox treats a different add-on ID
+as a separate installation; no credential or learning migration is implemented.
 
-No private update server or `update_url` is configured. Plan manual installation
-of separately authorized, signed updates. Mozilla explains that self-distributed
-updates need an update URL, a higher listed AMO version, or manual distribution:
-[self-distribution and updates](https://extensionworkshop.com/documentation/publish/self-distribution/).
+## Permanent installation: planned
 
-For a future update, increase the extension package version, keep the same add-on
-ID, build a new dated candidate, verify its extracted-source rebuild and obtain
-signing authorization. Preserve the last known working signed XPI and source pair.
-Install an update in the same permanent profile without uninstalling CartSplit.
-Treat storage compatibility as part of the update review; same identity alone
-does not prove a migration safe. Current candidate version is 1.4.0.
+Normal Firefox release and beta installations require a Mozilla-signed add-on,
+including unlisted self-distribution. An unlisted extension does not need a public
+store listing. See [Mozilla's signing overview](https://extensionworkshop.com/documentation/publish/signing-and-distribution-overview/).
 
-## Recovery and rollback
+Before submission, prepare a fresh unsigned extension and matching source package,
+verify the source rebuild, then obtain authorization for signing. Mozilla requires
+[readable source and build instructions](https://extensionworkshop.com/documentation/publish/source-code-submission/)
+for bundled code. Use packages built and verified from the current source.
 
-If a new version fails, stop using Review/Prepare/Save and disable CartSplit in
-`about:addons` while investigating. Do not uninstall or clear extension data as a
-first fix: doing so can remove the local credential and learning. Keep private
-profile backups protected outside this public repository; no profile backup has
-been created or inspected as part of this preparation.
+Once a verified signed XPI (Firefox add-on file) is available:
 
-A saved source/XPI pair preserves code, not YNAB history. Prefer a reviewed fix
-with a higher version number based on the last working source; do not assume
-Firefox will accept a downgrade or that old code can read newer storage. Any
-destructive storage repair or profile restore needs an explicit scope decision.
+1. Open the Firefox profile where you want to use CartSplit.
+2. Open `about:addons` and choose the gear menu → **Install Add-on From File**.
+3. Select the signed XPI and review Firefox's permission request.
+4. Connect locally and check persistence after restarting Firefox, without a financial save.
 
-Disabling, reinstalling or reverting code cannot undo a YNAB write. If a save was
-sent but its result was uncertain, inspect YNAB manually before taking further
-action. Do not retry it after restarting simply because the session receipt is
-gone. Preserve existing accepted transactions.
+These are planned steps. Signing, permanent installation and transfer of existing
+profile data have not been verified. Do not disable signature checks to make a
+development build permanent. Mozilla documents
+[installation from a file](https://extensionworkshop.com/documentation/publish/install-self-distributed/).
 
-## Token and local data maintenance
+## Updates and recovery
 
-The token is stored in extension-origin IndexedDB, protected by Firefox's profile
-boundary rather than an encrypted credential vault. Never include it in chat,
-screenshots, shell commands, logs, source packages or issue reports. Disconnect
-removes the local connection but does not revoke the token at YNAB. To replace a
-token, disconnect locally, revoke the old token through YNAB's developer settings,
-then enter a replacement locally. See [YNAB API authentication](https://api.ynab.com/).
+There is no CartSplit update server or manifest `update_url`. The planned route is
+manual installation of signed updates; Mozilla also supports updates through a
+configured update URL or a later listed AMO version.
+See [self-distributed updates](https://extensionworkshop.com/documentation/publish/self-distribution/).
 
-Local-data cleanup is a separate, confirmed operation. Read
-[local-data removal](local-data-removal.md) before using it. It does not undo saved
-YNAB categories or revoke a YNAB token. Product/history vectors are personal data
-even though new learning does not store raw product titles.
+| Task | Approach |
+| --- | --- |
+| Prepare an update | Increase the version, keep the same add-on ID, rebuild and verify fresh packages before authorized signing. Current source version: **1.4.0**. |
+| Install a signed update | Use the same permanent profile without first uninstalling. Check storage compatibility as part of the update. |
+| A new version fails | Disable CartSplit in `about:addons` and investigate. Keep the last working signed file and source package. |
+| A save result is uncertain | Inspect YNAB. Disabling, restarting or reverting CartSplit cannot undo a sent write or make it safe to retry. |
 
-The extension connects directly to YNAB for authenticated operations. Initial
-local-model use downloads pinned public files from Hugging Face/CDN and discloses
-ordinary network metadata; product titles and category names are processed on the
-device. Model memory use and first-use latency have not been benchmarked in the
-real profile. See [architecture](architecture.md) and the
-[October 25 review](security-review-2026-10-25.md) for limits.
+A source/XPI backup preserves code, not YNAB history. Uninstalling or clearing
+extension data can remove credentials and learning. Storage repair, profile restore
+and downgrades need a separate recovery decision.
+
+## Tokens and local data
+
+The token is stored in this Firefox profile, not an encrypted credential vault.
+**Disconnect YNAB** removes the local connection; it does not revoke the token at
+YNAB. To invalidate a token, revoke it in YNAB's developer settings. Enter a
+replacement only in CartSplit's local connection screen.
+
+Cached categories and learned choices remain after disconnect. Use the optional,
+confirmed [local-data removal](local-data-removal.md) if you want to erase them.
+This does not change saved YNAB transactions.
+
+For network destinations, storage details and remaining limits, read
+[Technical design and privacy](architecture.md).

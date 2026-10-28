@@ -1,83 +1,101 @@
-# CartSplit development guide
+# Build and develop CartSplit
 
-This guide covers building and loading the current Firefox development copy.
-For the purpose and design choices, start with the [README](../README.md).
-For implementation boundaries and remaining limits, read the
-[architecture](architecture.md) and [security review](security-review-2026-10-25.md).
+Build the Firefox extension from the repository root. For everyday use, read
+[Purchase review](purchase-review.md); for data and security boundaries, read
+[Technical design and privacy](architecture.md).
+
+## Build and load a development copy
+
+1. **Install the pinned dependencies.** Use the package manager recorded in
+   `package.json`. Installation hooks stay disabled; run WXT setup explicitly.
+
+   ```sh
+   corepack pnpm install --frozen-lockfile --ignore-scripts
+   corepack pnpm --filter extension exec wxt prepare
+   ```
+
+2. **Check the source.** These tests use synthetic data and mocked APIs.
+
+   ```sh
+   corepack pnpm --filter extension compile
+   corepack pnpm --filter extension test:run
+   ```
+
+3. **Build and inspect the Firefox output.**
+
+   ```sh
+   corepack pnpm --filter extension build:firefox
+   python3 scripts/verify-personal-build.py
+   ```
+
+   The inspector checks the built identity, permissions, page readers, network
+   policy and packaged WebAssembly runtime. It does not test a live connection.
+
+4. **Create or choose a separate Firefox profile.** Follow the
+   [profile setup steps](personal-installation.md#create-or-choose-a-profile), then open
+   `about:debugging#/runtime/this-firefox`, choose **Load Temporary Add-on** and
+   select `apps/extension/.output/firefox-mv2/manifest.json`.
+
+5. **Review the visible workflow locally.** Enter credentials only in CartSplit's
+   connection screen. Select a CAD plan and use the [purchase guide](purchase-review.md).
+   Use a new, eligible uncategorized purchase for a manual check, and inspect each
+   successful save in YNAB.
+
+A temporary add-on is removed when Firefox restarts. For permanent installation
+plans, see [Installation and maintenance](personal-installation.md).
 
 ## Toolchain
 
-The recorded October 25, 2026 environment is macOS / Apple Silicon with
-Node.js 24.19.0, Corepack 0.35.0, pnpm 10.33.3 and Python 3.9.6. These are verified
-versions, not a claim that every other version or platform is incompatible.
-Use the package manager pinned in package.json and the frozen lockfile.
+| Item | Recorded configuration |
+| --- | --- |
+| Package manager | pnpm **10.33.3**, pinned in `package.json` |
+| Local verification environment | macOS / Apple Silicon; Node **24.19.0**, Corepack **0.35.0**, Python **3.9.6** |
+| CI Node version | **22**, as configured in `.github/workflows/ci.yml` |
+| Dependency resolution | `pnpm-lock.yaml` with `--frozen-lockfile` |
 
-## Install, check and build
+The local versions describe the verified environment, not a compatibility guarantee
+for every platform. Do not replace pinned dependencies as part of an ordinary build.
 
-From the repository root:
+## Where to make changes
 
-```sh
-corepack pnpm install --frozen-lockfile --ignore-scripts
-corepack pnpm --filter extension exec wxt prepare
-corepack pnpm --filter extension compile
-corepack pnpm --filter extension test:run
-corepack pnpm --filter extension build:firefox
-python3 scripts/verify-personal-build.py
-```
+| Area | Path |
+| --- | --- |
+| Sidebar and user controls | `apps/extension/components/` and `apps/extension/entrypoints/sidepanel/` |
+| Review, approval, connection and learning | `apps/extension/background/` |
+| YNAB access, storage and shared calculations | `apps/extension/lib/` |
+| Amazon.ca page readers | `apps/extension/retailers/amazon/` and `apps/extension/entrypoints/amazon-ca.content.ts` |
+| Shared UI and manifest/build settings | `packages/ui/` and `apps/extension/wxt.config.ts` |
 
-Install hooks remain disabled. WXT setup runs explicitly after installation.
-The final checker inspects the built Firefox identity, permissions, CSP, reader
-registration, bundled WASM and retired integration boundaries. For strict unused
-symbol checks, run:
+All paths above are relative to the repository root. The retained worker and
+marketing site are separate workspace packages.
+
+## Additional checks
+
+For unused symbols and coverage, run:
 
 ```sh
 corepack pnpm --filter extension exec tsc --noEmit --noUnusedLocals --noUnusedParameters
+corepack pnpm --filter extension test:coverage
 ```
 
-## Load a development copy
+Changes to shared dependencies also warrant the retained worker and landing-site
+checks. Inspect their package scripts before running them.
 
-Use an isolated Firefox profile. Open `about:debugging#/runtime/this-firefox`,
-choose **Load Temporary Add-on**, and select:
+**CI currently runs on pull requests and pushes to `main`.** Changing GitHub's
+default branch to `personal-token-auth` did not change that filter. Direct pushes
+to the current default branch do not trigger this workflow. Its path filters also
+skip extension jobs for documentation-only changes. Local checks remain necessary.
 
-```text
-apps/extension/.output/firefox-mv2/manifest.json
-```
+The release and worker-deployment jobs are explicitly disabled. Building locally
+does not authorize signing, submission or deployment.
 
-Enter any needed token only in the extension's connection screen. Select the desired
-CAD plan through **Connection settings → Change YNAB Plan**. The matcher accepts one
-Amazon outflow with the exact amount and a date within 2 calendar days before or
-after Amazon's payment date, in an open, on-budget Cash, Checking, Savings or Credit
-Card account, including linked accounts and imported/matched purchases.
-It still requires an uncategorized, unsplit, nonreconciled transaction without transfers.
-Verify the actual plan/account and YNAB date in the prepared proposal before approving
-each save. The Amazon date is also shown when different; the YNAB date is preserved.
-Use synthetic data for automated checks; live-plan acceptance is performed locally
-by the owner. Do not repeat accepted financial writes or seed live storage to test learning.
+## Verification on record
 
-The add-on ID is `cartsplit@mcgeeker`, and its connection database is
-`cartsplit-connection`. This is a separate identity from earlier installations;
-credentials and learning are not automatically migrated. Temporary loading does
-not establish durable installation. Signing and submission require separate
-authorization; see [installation and maintenance](personal-installation.md).
+The October 27 source checkpoint passed typecheck, **683 tests across 48 files**,
+the Firefox build and manifest inspection. The owner accepted the selected-plan
+workflow and ±2-day posting-date matching in Firefox. This documentation review
+does not rerun those checks.
 
-## Project layout and verification
-
-`apps/extension` contains the extension; `packages/ui` contains shared components
-and styles. The retained upstream worker and landing site are not required for
-the extension runtime. Release and worker-deployment jobs remain disabled.
-
-The October 27 selected-plan development build passed strict typecheck,
-683 tests across 48 files and the Firefox build, including inclusive ±2-day bank
-posting-date matching and preservation of the original YNAB date. The earlier October 25
-extracted-source build reproduced all 17 runtime files in the recorded toolchain;
-that package evidence predates the selected-plan changes. The owner reported that
-the actual-plan workflow and posting-date fix work well in Firefox. Fresh installation
-packages and durable signed installation remain separate work.
-The known nonfatal transformers import.meta/IIFE warning remains. These results
-do not prove cross-platform reproducibility or numerical model accuracy.
-
-Use synthetic fixtures and mocked APIs for automated tests. Never put real tokens,
-purchase records or profile data in source, logs, screenshots or issues. Read the
-[architecture](architecture.md) and [security review](security-review-2026-10-25.md)
-for data boundaries and remaining limits. Historical preview/test-control guides
-are records of earlier stages, not instructions to restore retired operations.
+The existing Transformers.js `import.meta`/IIFE warning is nonfatal. Numerical
+suggestion quality, first-use latency and memory use have not been benchmarked.
+Keep real tokens, purchase records and Firefox profiles out of fixtures and archives.

@@ -1,70 +1,29 @@
-# CLAUDE.md
+# CartSplit contributor notes
 
-Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
+Start with the [project overview](README.md) and
+[developer guide](docs/development.md). Current behavior and trust boundaries are
+documented in [Technical design and privacy](docs/architecture.md).
 
-**Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
+## Scope
 
-## 1. Think Before Coding
+CartSplit is a personal Firefox fork for English Amazon.ca pages and selected CAD
+YNAB plans. Authentication uses a locally entered Personal Access Token. There is
+no OAuth relay, unattended sync or bulk approval in the extension runtime.
 
-**Don't assume. Don't hide confusion. Surface tradeoffs.**
+## Working rules
 
-Before implementing:
+1. **Make the requested change.** Use existing patterns and avoid unrelated refactors
+   or speculative abstractions.
+2. **Protect private data.** Use synthetic fixtures and mocked APIs. Never put real
+   tokens, purchase records or Firefox profiles in source, logs or archives.
+3. **Preserve approval boundaries.** Review and preparation are read-only. Each
+   transaction needs its own final approval; uncertain writes must not be retried.
+4. **Verify appropriately.** Inspect package scripts, use the pinned package manager
+   and run checks relevant to the change. Documentation edits need link and
+   accuracy checks; runtime changes need applicable tests and build checks.
+5. **Record the result clearly.** Explain what changed, what was checked and any
+   remaining limits. Keep ordinary guides separate from dated test records.
 
-- State your assumptions explicitly. If uncertain, ask.
-- If multiple interpretations exist, present them - don't pick silently.
-- If a simpler approach exists, say so. Push back when warranted.
-- If something is unclear, stop. Name what's confusing. Ask.
-
-## 2. Simplicity First
-
-**Minimum code that solves the problem. Nothing speculative.**
-
-- No features beyond what was asked.
-- No abstractions for single-use code.
-- No "flexibility" or "configurability" that wasn't requested.
-- No error handling for impossible scenarios.
-- If you write 200 lines and it could be 50, rewrite it.
-
-Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
-
-## 3. Surgical Changes
-
-**Touch only what you must. Clean up only your own mess.**
-
-When editing existing code:
-
-- Don't "improve" adjacent code, comments, or formatting.
-- Don't refactor things that aren't broken.
-- Match existing style, even if you'd do it differently.
-- If you notice unrelated dead code, mention it - don't delete it.
-
-When your changes create orphans:
-
-- Remove imports/variables/functions that YOUR changes made unused.
-- Don't remove pre-existing dead code unless asked.
-
-The test: Every changed line should trace directly to the user's request.
-
-## 4. Goal-Driven Execution
-
-**Define success criteria. Loop until verified.**
-
-Transform tasks into verifiable goals:
-
-- "Add validation" → "Write tests for invalid inputs, then make them pass"
-- "Fix the bug" → "Write a test that reproduces it, then make it pass"
-- "Refactor X" → "Ensure tests pass before and after"
-
-For multi-step tasks, state a brief plan:
-
-```
-1. [Step] → verify: [check]
-2. [Step] → verify: [check]
-3. [Step] → verify: [check]
-```
-
-Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
-
----
-
-**These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
+Original MIT attribution stays intact. The retained worker/site are separate
+upstream projects. Release and worker-deployment jobs remain disabled; signing,
+store submission and deployment require a separate scope decision.

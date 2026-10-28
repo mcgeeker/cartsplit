@@ -1,46 +1,33 @@
-# lineitem landing page
+# Retained upstream landing site
 
-The public marketing site for lineitem (lineitem.dev) — a static **Vite + React**
-SPA. It reuses the shared design tokens and components from `@lineitem/ui`, so the
-site and the extension never drift.
+This directory contains the original lineitem marketing site, a Vite + React
+single-page app. It retains upstream branding, privacy text and feedback
+integrations. **It is not CartSplit's website or current privacy documentation.**
 
-## Develop
+For CartSplit, start with the [project README](../../README.md) or
+[documentation index](../../docs/README.md). The extension does not need this site
+or the upstream OAuth worker to run.
 
-```bash
-pnpm --filter landing dev          # local dev server
-pnpm --filter landing storybook    # component workbench (port 6007)
-pnpm --filter landing compile      # type-check (tsc --noEmit)
-pnpm --filter landing build        # production build → dist/
-```
+## Local development
 
-## Deploy (Cloudflare Workers — static assets)
+After dependency setup in the [developer guide](../../docs/development.md), run
+these commands from the repository root:
 
-Deployed as a static-assets Worker (no script): the Vite build in `dist/` is
-served straight from Cloudflare's edge. No SSR, no functions — the feedback form
-posts directly to Web3Forms. Config lives in `wrangler.toml`.
+| Task | Command |
+| --- | --- |
+| Development server | `corepack pnpm --filter landing dev` |
+| Component workbench, port 6007 | `corepack pnpm --filter landing storybook` |
+| Typecheck | `corepack pnpm --filter landing compile` |
+| Production build | `corepack pnpm --filter landing build` |
 
-Manual deploy from the repo:
+The build output is `apps/landing/dist/`. Shared components and design tokens come
+from `packages/ui/`; sharing them does not make the two products' content identical.
 
-```bash
-pnpm --filter landing build
-pnpm --filter landing run deploy   # wrangler deploy → lineitem-landing
-```
+## Deployment status
 
-(`run` is required — bare `pnpm deploy` invokes pnpm's own built-in deploy command.)
+The retained `wrangler.toml` and package deployment script describe the upstream
+Cloudflare setup. They do not establish that this fork controls or deploys
+`lineitem.dev`. No site deployment is part of the CartSplit workflow.
 
-Connected to Git via **Workers Builds** (Workers & Pages → `lineitem-landing` →
-Settings → Builds), which auto-deploys `main`:
-
-- **Build command:** `pnpm --filter landing build`
-- **Deploy command:** `pnpm --filter landing exec wrangler deploy`
-- **Root directory:** repo root (so pnpm resolves the `@lineitem/ui`
-  `workspace:*` link from source)
-
-Custom domain `lineitem.dev` is attached under the Worker's **Domains & Routes**.
-A SPA fallback isn't needed — this is a single anchor-scrolled page with no
-client-side routing.
-
-## Environment
-
-- `VITE_WEB3FORMS_KEY` — Web3Forms access key for the feedback forms (wired in a
-  later PR). Web3Forms keys are publishable; a working fallback ships in the code.
+Upstream domain, form-key and deployment details are historical configuration,
+not instructions to publish CartSplit under the original developer's identity.

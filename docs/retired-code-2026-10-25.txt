@@ -1,5 +1,7 @@
-Retired during the October 25 CartSplit audit. Historical stores/data remain preserved.
-These paths are no longer part of the current runtime/test/story tree.
+Historical removal inventory — October 25, 2026.
+127 source, test and story paths removed during the CartSplit cleanup.
+This is a record of removed files, not a deletion checklist. Existing user data was preserved.
+Current technical guide: docs/architecture.md (relative to the repository root).
 
 apps/extension/background/amazon-ca-check.test.ts
 apps/extension/background/amazon-ca-check.ts

@@ -1,39 +1,38 @@
 # Remove local CartSplit data
 
-Local cleanup is optional. It removes cached application data from this Firefox
-profile without changing YNAB transactions.
+**Cleanup is optional and cannot be undone.** It removes cached and learned
+records from this Firefox profile, across all YNAB plans. It does not change
+transactions stored in YNAB.
 
-## What is removed
+## Preview before deleting
 
-The preview lists counts for four local stores: cached orders, learned product
-choices, product title/vector records and cached categories. Cleanup covers all
-plans in this profile, including dormant records from earlier versions.
-
-The connection database is separate: disconnect from YNAB before using cleanup.
-Removal does not revoke the token at YNAB, delete YNAB transactions, remove the
-local model cache, clear browser history or affect another Firefox profile.
-
-## Preview and confirm
-
-1. Disconnect YNAB in CartSplit, then open **Local data** on the connection screen.
-2. Select **Preview local data removal** and inspect the displayed counts.
-3. If you want to remove those records, tick the explicit deletion confirmation
-   and select **Delete these local records**. Otherwise cancel the preview.
+1. Click **Disconnect YNAB**, then open **Local data** on the connection screen.
+2. Click **Preview local data removal** and inspect the counts.
+3. To proceed, tick the deletion confirmation and click **Delete these local records**.
+   Otherwise, choose **Cancel removal preview**.
 
 Opening Local data or previewing counts deletes nothing. The preview makes no
-network request and returns no purchase titles, record keys or credentials. Its
-approval expires after five minutes and can be used only once.
+network request. It expires after five minutes; changed records require a new preview.
 
-Before deletion, CartSplit checks that it is still disconnected and that the
-record keys still match the preview. Changed records require a new preview.
-All four stores are cleared in one transaction; failure before commit does not
-leave a partial clear. Completed deletion cannot be undone. If the response is
-lost, preview the current counts again before deciding what to do next.
+## What the counts mean
 
-## Technical details
+| Displayed label | Records removed |
+| --- | --- |
+| Cached orders | Historical local transaction/order records |
+| Learned product choices | Saved product-to-category choices |
+| Product title records | Locally stored product vectors and any older title records |
+| Cached categories | Cached YNAB categories |
 
-Cleanup uses the extension's existing `lineitem` application database. It does not
-remove the separate `cartsplit-connection` credential database or browser-managed
-model files. Confirmation, expiry, cancellation, changed-key rejection and atomic
-rollback are covered by synthetic tests. See the [architecture](architecture.md)
-and [development guide](development.md) for storage boundaries and verification.
+Cleanup clears all four stores together. If removal cannot be confirmed, preview
+the counts again before deciding what to do next.
+
+## What cleanup does not affect
+
+**Transactions stored in YNAB remain unchanged**, including categories and splits
+you have already saved there. Cached transaction/order records in CartSplit's
+local application database are deleted during cleanup.
+
+The downloaded model, browser history and other Firefox profiles are unaffected.
+Disconnecting does not revoke the token at YNAB; revoke it there separately if needed.
+
+For storage boundaries and retention, see [Technical design and privacy](architecture.md).

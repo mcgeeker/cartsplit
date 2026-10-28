@@ -1,77 +1,134 @@
-# CartSplit architecture and maintenance
+# Technical design and privacy
 
-Current scope: October 25, 2026. This document describes the personal Firefox runtime. The retained upstream OAuth worker and marketing site are outside that runtime. See the [development guide](development.md) for build instructions and recorded verification.
+CartSplit runs the selected-order Amazon.ca workflow in Firefox. It connects
+directly to YNAB using a locally entered Personal Access Token. The
+upstream OAuth worker and marketing site are not part of this runtime.
 
-## Trust boundaries
+Choosing one plan in CartSplit does not restrict what the token itself can access
+in YNAB; the selected-plan checks are enforced by CartSplit.
 
-| Boundary | Owner | Rule |
-| --- | --- | --- |
-| Web page → content reader | `entrypoints/amazon-ca.content.ts` | Passive listener registers at document start; loading documents return a closed status. No automatic read. Only own-extension, non-tab requests for order summary or payments. Readers validate Canadian URLs, language, links, quantities, currency and amounts. |
-| Sidebar → background | `background/ui-messages.ts`, `lib/verification.ts` | Exact extension ID and sidebar URL, no tab sender, one explicit command allowlist. Content scripts cannot connect, read settings, prepare, save or delete local data. |
-| Page reply → review | `background/page-request.ts`, `background/order-review.ts` | Treat replies as untrusted. Ten-second request deadline, abort handling, closed unavailable/empty/timeout diagnostics, bounded item count and strict projections. Never accept sidebar-provided amounts. |
-| Background → YNAB | `lib/ynab.ts` | Fixed HTTPS API origin, redirects rejected, cookies omitted, bearer token added only here. Private read/write capabilities and path/method allowlists apply independently of the UI. |
-| Background → local model | `background/embedder.ts`, `background/purchase-learning.ts` | Only public model files are fetched. Text inference stays on-device; remote model data is pinned to a commit and executable WASM is packaged locally. |
+For operating instructions, use [Purchase review](purchase-review.md). For commands,
+use the [developer guide](development.md).
 
-React renders titles/category labels as text. The runtime has no HTML injection, web-page message bridge, feedback-submission path, general transaction writer, batch approval, sync, backfill or OAuth relay client.
+## What connects to the network?
 
-## Review and save lifecycle
+| Destination | Purpose and data |
+| --- | --- |
+| YNAB API | Authenticate, read plans/accounts/categories/transactions, and save category changes the user approves. The bearer token is sent only here. |
+| Hugging Face and allowed CDNs | Download pinned public model files. Requests expose ordinary network metadata, including IP address; they do not contain product titles, category text or the YNAB token. |
+| Amazon.ca in Firefox tabs | The user browses signed-in order/payment pages. CartSplit reads the selected pages when requested. |
 
-1. The workspace follows validated order metadata from the active tab. Drafts remain mounted per order; order keys are own properties, including unusual names such as `constructor`. Session receipts are read-only. Changing tabs never starts a review or save.
-2. Review reads the selected detail page and the one current payments page, reconciles full funding, and checks each exact linked amount against eligible Amazon/AMZN YNAB charges within 2 calendar days before or after the Amazon payment date. No ninety-day cutoff applies. Existing categorized/split transactions are preserved.
-3. Preparation recomputes allocation from fresh data and validates exact current category IDs/names. Single-product orders use the complete card amount. Split shipments retain distinct charges and approvals; allocation freezes after the first saved charge. Grants expire after five minutes and are bound to the review, connection, original tabs, target and policy.
-4. Apply consumes the grant before awaiting. It rechecks pages, selected tab, connection, categories and transaction. The matcher freshly verifies the selected plan's ID and CAD currency, then reads its accounts and transactions starting 2 days before the Amazon payment date. Exactly one Amazon outflow with the exact amount and a valid date within the inclusive ±2-day window must belong to an open, on-budget Cash, Checking, Savings or Credit Card account. Linked accounts and imported/matched purchases are supported; categorized, split, reconciled, transfer and ambiguous targets remain blocked. The response must verify parent fields, import/match identifiers and exact category/split amounts.
-5. A sent write is never retried automatically. A lost response or post-send cancellation produces an unconfirmed result and blocks another attempt in that background session. Only verified success can teach categories. Optional local-learning failure cannot turn verified remote success into a failed financial save.
+Matching, category suggestions and learning run locally. The extension runtime has
+no analytics, feedback submission or cloud inference service. Approved writes send
+category/split data to YNAB; they do not upload product-title memos.
 
-The selected-plan matcher uses the account, currency and import/match fields in
-YNAB's [official OpenAPI schemas](https://github.com/ynab/ynab-sdk-js/blob/main/open_api_spec.yaml).
-It uses one date-bounded transaction read across the selected plan; unrelated merchants
-and unsupported accounts are excluded. Malformed/duplicate accounts and oversized
-account or transaction lists stop the operation. No import, batch-write or retry
-endpoint is enabled. Approval previews and session receipts show the bound plan and
-account names. Changing the selected plan invalidates reviews and grants; category
-cache, learned products and receipts remain scoped by plan ID.
+The manifest permits Amazon.ca, YNAB and the model download hosts. Packaged scripts
+and WebAssembly run locally; the content security policy restricts outbound
+extension connections. Ordinary browser traffic outside CartSplit is separate.
 
-The target snapshot keeps Amazon's original payment date separately from the actual
-YNAB transaction date. The final writer repeats the match around that original Amazon
-date, so the window cannot move when the bank date differs. UTC calendar-day arithmetic
-handles month/year, leap-day and DST boundaries; invalid dates are rejected. Multiple
-candidates always stop, including an exact-date candidate beside another in-window
-candidate. The proposal shows both dates when they differ; writes never include a date
-field and response verification requires the original YNAB date to remain unchanged.
+## How a purchase becomes a save
 
-The background serializes connection, cache and review mutations. Cancellation reaches queued/in-flight work immediately. Navigation cancels review/preparation and invalidates final consent while preserving drafts; it preserves an already-sent save. Explicit disconnect cancels active requests. Waiting on a shared model download is abortable; the public download may finish, while canceled text inference/storage cannot resume. Already-running WASM inference is not forcibly terminated.
+1. **Read:** an explicit sidebar action asks the page reader for the selected
+   order and the open payments page. The background validates and reconciles the
+   replies before suggesting categories.
+2. **Match:** each linked card payment must identify one eligible Amazon/AMZN
+   outflow in the selected CAD plan. Its amount must match exactly and its date
+   must fall within **±2 calendar days** of Amazon's original payment date.
+3. **Prepare:** fresh page, category and transaction checks produce a proposal
+   bound to the plan, account, tabs, target and allocation choices.
+4. **Approve and send:** separate final approval permits one write to the chosen
+   transaction. The grant is consumed before the write; the response must verify
+   the exact category amounts and preserved parent details.
+5. **Record:** verified success creates a session receipt and may teach local
+   category history. A learning failure cannot turn a verified save into an
+   uncertain financial result or permit saving it again.
 
-YNAB does not supply a transaction lock for this workflow. Fresh reads narrow the race but cannot make external edits between preflight and PUT impossible. There is no remote rollback or durable idempotency guarantee. An unconfirmed result requires manual inspection, including after extension restart.
+Supported accounts are open, on-budget Cash, Checking, Savings and Credit Card
+accounts, including linked accounts and imported/matched purchases. A writable
+target must be uncategorized, unsplit, not reconciled and not a transfer. Multiple
+matches stop the operation, including when one candidate has the exact Amazon date.
 
-## Storage and retention
+Every check stays anchored to the original Amazon payment date. Saving preserves
+the actual YNAB date, account, amount, approval, memo, payee, cleared status, flag
+and import/match identifiers. Lines sharing a category are combined; one resulting
+category uses a direct category update.
 
-| Data | Location/lifetime | Notes |
-| --- | --- | --- |
-| Personal Access Token and chosen plan | Extension-origin `cartsplit-connection` IndexedDB | Content scripts use the page's IndexedDB origin. The token is not returned to the sidebar or stored in `storage.local`. Local profile storage is not encryption or an OS vault. Disconnect removes the local connection; revoke separately at YNAB. |
-| Exact reviewed choices | `lineitem` / `learnedProducts` | Plan + reviewed-retailer + product ID → category ID. Persist until correction, conflict removal or confirmed cleanup. Product/category IDs still reveal purchasing information. |
-| Reviewed vectors | `lineitem` / `productEmbeddings` | 384 dimensions, model marker, timestamp, category ID, empty title. At most 50/category and 500/plan in the reviewed pool. Embeddings are derived personal data, not anonymization. |
-| Category cache | `lineitem` / `categories` | Each replacement is tagged with the owning plan. A canceled switch cannot expose the new cache under the old plan. Untagged historical cache rows are hidden from active category reads; refresh explicitly. |
-| Historical upstream data | Existing four `lineitem` stores | Schema and records are preserved. No startup adoption or guessed plan assignment. Old rows may contain titles, prices or identifiers; they remain dormant until explicitly removed. |
-| Review drafts / bindings | Sidebar and background memory | Include current product text and connection binding. Reviews expire for authorization after ten minutes; expiry is not a guaranteed physical erasure timer. Navigation may retain mounted drafts until sidebar close. Background snapshots prune on subsequent review/clear/invalidation. |
-| Save receipts / warnings | Background memory, plan/order scoped | No token, titles or raw YNAB IDs in UI projections. Up to 100 completed receipts; partial/unconfirmed entries are retained for safety. Restart clears them and cannot establish whether a prior write saved. |
-| Model files | Browser-managed model Cache API | Public artifact files, separate from learned records. Pinning a revision can cause a new download alongside a previous cache entry. Local-data cleanup does not clear this cache. |
+Single-product orders assign the full card payment to its category. Multiple
+payments keep their individual totals and approvals. Within-payment allocations
+are estimates; assignments and allocation choices freeze after the first verified
+payment save in that review.
 
-Local-data removal uses a disconnected-only count preview and a single-use expiring grant. It compares record keys and atomically clears all four application stores. It does not erase the separate credential DB, model/browser cache, or YNAB records. Nothing is deleted at upgrade/startup. Fixture writers exist only under `test-support/` and are not imported by runtime entries.
+## Where privileged checks live
 
-## Local suggestions
+| Boundary | Implementation |
+| --- | --- |
+| Sidebar → background | `background/ui-messages.ts` requires the exact extension ID and sidebar URL, no tab sender, and an allowed command. |
+| Background → page | `background/page-request.ts` bounds explicit requests by cancellation and a ten-second deadline. |
+| Page reply → review | `background/order-review.ts` validates URLs, replies, amounts and funding; sidebar-supplied amounts are not trusted. |
+| Background → YNAB | `lib/ynab.ts` uses a fixed HTTPS origin, rejects redirects, omits cookies and checks permitted paths/methods. |
+| Background → local learning | `background/purchase-learning.ts` learns only after a verified save and keeps records scoped to the plan. |
 
-`suggestPurchaseCategories` tries exact reviewed-product learning, then similar reviewed products, then category-name/group embeddings from the same local model. The historical similarity threshold is 0.75; category similarity is 0.45; both require a 0.08 margin over the next category. These are heuristics, not calibrated probabilities. Low confidence or model failure leaves manual selection available. Duplicate/invalid categories cannot be used.
+Paths are relative to `apps/extension/`. The Canadian content reader registers a
+passive listener at document start; loading a page does not automatically scrape,
+sync, initialize the model or save. Content scripts cannot read the connection
+database or invoke privileged sidebar commands.
 
-Category-name vectors are reused across reviews in a single background-memory snapshot of at most 512 categories (0.75 MiB of vector data at that cap, plus identifiers/text and object overhead). The key includes the plan, model marker, current category IDs and exact bounded text used for inference; category ordering alone does not force recomputation. Changed model inputs or IDs require a fresh fill. Larger plans still score all valid categories but bypass this cache. Connection attempts, plan selection, disconnect and background restart clear it. Failed/canceled fills and fills invalidated by a connection change are never retained. No product text is added to this cache, no cache data is written to disk, and fresh YNAB category/transaction checks still run independently. The first model-assisted review after reload still pays initialization and category encoding costs; subsequent reviews avoid repeated category encoding.
+## What is stored?
 
-The model is `Xenova/bge-small-en-v1.5`, q8, revision `ea104dacec62c0de699686887e3f920caeb4f3e3`. Model updates require code review and compatibility consideration for persisted vectors. Processing uses one WASM thread, batches up to eight inputs, bounded text lengths, and validated finite 384-dimensional vectors. Mean pooling is retained for compatibility with existing reviewed vectors. First-use loading and inference latency/RAM are not benchmarked on this user's browser.
+**On disk in this Firefox profile:**
 
-Hugging Face and its allowed CDNs can observe IP address, request timing and requested public artifact paths. Product text, category names, YNAB token and financial records are not model-download parameters and are not sent to a cloud inference service. The CSP restricts outbound extension connections to YNAB and those artifact hosts; no remote JavaScript is permitted.
+| Data | Location and lifetime |
+| --- | --- |
+| Token and chosen plan | Extension-origin `cartsplit-connection` IndexedDB. Disconnect removes the connection; revocation is a separate YNAB action. |
+| Exact product/category choices | `lineitem` database, `learnedProducts` store. Kept until corrected, removed on conflict or explicitly cleared. |
+| Product vectors | `productEmbeddings` store. Reviewed records have empty title fields; up to 50 vectors per category and 500 per plan. Exact choices survive vector eviction. |
+| Category cache and older records | Existing `lineitem` stores. Category caches carry a plan tag. Older data remains dormant; there is no automatic migration or backfill. |
+| Public model files | Browser-managed model cache. Application-data cleanup does not remove these files. |
 
-## Maintenance and verification
+**In memory:** review drafts, prepared approvals, category-name vectors, session
+receipts and uncertain-save warnings. Reviews expire for authorization after ten
+minutes; final proposals after five. Expiry does not guarantee physical erasure
+at that moment. Up to 100 completed order receipts are retained; partial and
+unconfirmed results are kept for the background session. Restart clears them.
 
-Use the [development guide](development.md) with the pinned package manager, frozen lockfile, disabled install hooks and explicit `wxt prepare`. Root overrides pin patched transitive dependencies across the workspace; remove an override only after verifying that all dependency paths have a safe supported replacement. Storybook development telemetry is explicitly disabled in its local configuration. Native sharp is used for build-time icons/Node tooling, not browser inference. The Node ONNX dependency and its tar installer are not the Firefox execution path.
+Local profile storage is not an encrypted vault. Product IDs, categories and vectors
+remain personal data even without raw titles. Confirmed [cleanup](local-data-removal.md)
+removes all four application stores across plans, but not YNAB records or model files.
 
-Run typecheck (including unused locals/parameters), extension tests/coverage, Firefox build and `scripts/verify-personal-build.py`. Relevant dependency changes also warrant the retained worker/landing checks and Storybook build. The manifest checker verifies identity, exact permissions/readers, CSP, local WASM and absence of the removed relay/feedback integrations in JavaScript. It does not prove runtime network behavior.
+## How suggestions work
 
-Before any future signing decision, complete only the new, outstanding browser checks from HANDOFF.md, review fresh unsigned/source artifacts, and verify a source rebuild. Existing signing archives and historical preview guides are not current release instructions. No publishing/deployment workflow may be enabled without the user's separate authorization.
+Suggestions try the exact reviewed product first, similar reviewed products second,
+and comparison with current category/group names third. Weak or competing matches
+stay manual. No suggestion alone teaches history.
+
+The model is `Xenova/bge-small-en-v1.5`, q8, pinned to revision
+`ea104dacec62c0de699686887e3f920caeb4f3e3`. It produces 384-dimensional vectors
+using local WebAssembly. Similar-product scoring requires 0.75; category-name
+scoring requires 0.45; both require a 0.08 winning margin. These are heuristics,
+not probabilities or measured accuracy.
+
+Category-name vectors are reused in a single memory cache for up to 512 categories.
+Its key includes the plan, model and current category inputs. Larger plans still
+receive suggestions but bypass this cache. Connection changes and restart clear it.
+Product text is not added to that cache.
+
+Canceled or unconfirmed financial saves do not teach history. Conflicts remove
+ambiguous choices. Model failure can still allow exact-choice learning; local storage
+failure does not justify another financial save.
+
+## Cancellation and remaining limits
+
+Navigation clears prepared approval and preserves order-specific drafts while the
+sidebar remains open. Sidebar closure cancels unfinished drafts. Connection changes
+invalidate reviews and clear the category-vector cache. Cancellation stops waiting
+for model loading, but already-running WebAssembly inference may finish internally.
+
+**A sent write cannot be undone by cancellation or disconnect.** Fresh reads cannot
+eliminate concurrent edits in YNAB. There is no remote transaction lock, automatic
+rollback or durable exactly-once guarantee. An unconfirmed result requires manual
+YNAB inspection; restarting does not make a retry safe.
+
+The [October 25 security review](security-review-2026-10-25.md) is dated evidence.
+It is not a certification of later builds. Model accuracy, memory use and first-use
+latency have not been benchmarked. New packages need fresh build and source-rebuild
+verification before any authorized signing.
