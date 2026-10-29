@@ -81,10 +81,12 @@ corepack pnpm --filter extension test:coverage
 Changes to shared dependencies also warrant the retained worker and landing-site
 checks. Inspect their package scripts before running them.
 
-**CI currently runs on pull requests and pushes to `main`.** Changing GitHub's
-default branch to `personal-token-auth` did not change that filter. Direct pushes
-to the current default branch do not trigger this workflow. Its path filters also
-skip extension jobs for documentation-only changes. Local checks remain necessary.
+**CI runs on pull requests and pushes to `personal-token-auth` or `main`.**
+Path filters run the extension checks when extension code, shared UI, dependency
+inputs or the CI workflow changes; documentation-only changes skip those jobs.
+Checks include typechecking, tests with coverage, a Firefox build and manifest
+boundary verification. The workflow only uploads an unsigned build artifact.
+
 
 The release and worker-deployment jobs are explicitly disabled. Building locally
 does not authorize signing, submission or deployment.

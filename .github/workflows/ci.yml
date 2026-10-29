@@ -3,7 +3,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [personal-token-auth, main]
 
 permissions:
   contents: read
