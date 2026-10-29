@@ -131,7 +131,7 @@ export default function PurchaseReview({categories,visible=true,interactive=true
  <dl className="mt-2 space-y-1 pl-3">
  {[
   ["Subtotal",cad(review.summary.subtotalCents)],
-  ...(review.summary.couponCents?[["Coupon savings",`−${cad(review.summary.couponCents)}`]]:[]),
+  ...(review.summary.couponCents?[["Discounts",`−${cad(review.summary.couponCents)}`]]:[]),
   ...(review.summary.shippingCreditCents?[["Shipping charge",cad(review.summary.shippingChargeCents!)],["Free Shipping credit",`−${cad(review.summary.shippingCreditCents)}`]]:[]),
   [review.summary.shippingCreditCents?"Net shipping":"Shipping",cad(review.summary.shippingCents)],
   ["Environmental fee",cad(review.summary.feeCents)],
@@ -151,7 +151,7 @@ export default function PurchaseReview({categories,visible=true,interactive=true
  {productTotals&&item.quantity!==1&&<p>Item total: {cad(productTotals[i]!)}{productTotals[i]!==item.priceCents?` (${item.quantity} × ${cad(item.priceCents!)})`:""}</p>}
  {estimate?.[i]?.feeCents?<p>Estimated added charges: {cad(estimate[i]!.feeCents)}</p>:null}
  {estimate?.[i]?.giftCardCents?<p>Estimated gift-funded share: {cad(estimate[i]!.giftCardCents)}</p>:null}
- {estimate?.[i]?.couponCents? <p>Estimated coupon share: −{cad(estimate[i]!.couponCents)}</p>:null}
+ {estimate?.[i]?.couponCents? <p>Estimated discount share: −{cad(estimate[i]!.couponCents)}</p>:null}
  <p>Estimated card share: {displayEstimate?cad(displayEstimate[i]!.cardCents):review.matchedCharges?"assign every item to a payment first":"unavailable — order amounts need review"}</p></div>}
  {!singleItem&&item.quantity!==1&&<label className="flex items-start gap-2 leading-relaxed"><input className="mt-1 shrink-0" type="checkbox" checked={lineTotals[i]??false} disabled={busy||locked||splitLocked} onChange={e=>{clearProposal();setLineTotals(p=>p.map((v,n)=>n===i?e.target.checked:v));}}/> Total price confirmed{productTotals?` (${cad(productTotals[i]!)})`:""}.</label>}
  <p className="text-muted">{item.suggestedCategoryId&&choices[i]===item.suggestedCategoryId?(item.suggestionSource==="history"?"Suggested from similar products you previously categorized.":item.suggestionSource==="model"?"Suggested by the local model from your category names. Check this guess.":"Suggested from your saved choice for this product."):""}</p>

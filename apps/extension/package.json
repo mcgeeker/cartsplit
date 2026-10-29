@@ -2,7 +2,7 @@
   "name": "extension",
   "description": "Categorize Amazon.ca purchases in YNAB. Your token and approved changes go directly to YNAB, never to the CartSplit developer.",
   "private": true,
-  "version": "1.4.1",
+  "version": "1.4.2",
   "type": "module",
   "scripts": {
     "dev": "wxt",

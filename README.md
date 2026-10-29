@@ -67,8 +67,8 @@ CartSplit is currently a **personal development project** for **Firefox,
 Amazon.ca, English pages and CAD**. You choose the YNAB plan, and every financial
 change requires review and approval.
 
-**[Download the Mozilla-signed Firefox extension](https://github.com/mcgeeker/cartsplit/releases/tag/v1.4.1).**
-Install `cartsplit-1.4.1-signed.xpi` in the Firefox profile where you want to use it:
+**[Download the Mozilla-signed Firefox extension](https://github.com/mcgeeker/cartsplit/releases/tag/v1.4.2).**
+Install `cartsplit-1.4.2-signed.xpi` in the Firefox profile where you want to use it:
 open `about:addons` → gear → **Install Add-on From File**. Each user connects with
 their own YNAB token entered locally. No public Mozilla Add-ons listing is needed.
 See [installation and maintenance](docs/personal-installation.md) for setup,

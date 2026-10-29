@@ -14,7 +14,7 @@ needs review and final approval.
 | Remove cached or learned data from this Firefox profile | [Local-data removal](local-data-removal.md) |
 | Build or change the extension | [Developer guide](development.md) |
 
-[CartSplit 1.4.1 is available as a Mozilla-signed Firefox download](https://github.com/mcgeeker/cartsplit/releases/tag/v1.4.1).
+[CartSplit 1.4.2 is available as a Mozilla-signed Firefox download](https://github.com/mcgeeker/cartsplit/releases/tag/v1.4.2).
 Use the installation guide for everyday use; temporary loading is for development.
 Updates are installed manually.
 

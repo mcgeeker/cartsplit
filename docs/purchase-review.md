@@ -49,7 +49,13 @@ separately from the amount charged to your card.
 ## Adjustments for orders with several products
 
 Open **Charge breakdown** to inspect tax, shipping, fees, discounts and gift
-funding. Under **Adjustments**, choose where each detected adjustment belongs:
+funding. Negative summary amounts between **Item(s) Subtotal** and **Total before
+tax** appear as **Discounts**, regardless of their names. Multiple distinct discount
+rows are combined. Free Shipping credits and gift-card funding stay separate;
+duplicate discount evidence, unknown reductions after tax or mismatched totals stop
+the review.
+
+Under **Adjustments**, choose where each detected adjustment belongs:
 
 | Choice | Use it to… |
 | --- | --- |
@@ -58,11 +64,11 @@ funding. Under **Adjustments**, choose where each detected adjustment belongs:
 | **Separate category** | Give a positive fee or net shipping charge its own category. |
 
 For shared amounts, choose **Equally** or **By item value**. Fees and net shipping
-default to equal shares; coupons and gift funding default to item value.
+default to equal shares; discounts and gift funding default to item value.
 
-Coupons reduce product cost before estimated tax. Gift funding reduces the amount
+Discounts reduce product cost before estimated tax. Gift funding reduces the amount
 paid by card after tax. Free Shipping credit offsets shipping first, so only the
-net shipping cost is allocated. Separate fee/shipping rows do not receive coupon
+net shipping cost is allocated. Separate fee/shipping rows do not receive discount
 or gift reductions.
 
 These are estimates of how costs are shared. Check the displayed category amounts
@@ -84,7 +90,7 @@ transactions separate and saves **one payment at a time**.
    before preparing the next payment. Each payment needs separate final approval.
 
 Each payment's exact amount stays fixed. Its division among assigned rows is an
-estimate, not proof of shipment-specific tax, coupon or gift amounts.
+estimate, not proof of shipment-specific tax, discount or gift amounts.
 
 After the first verified save, assignments, categories and adjustment choices are
 fixed for the remaining payments in that review. Already categorized or split

@@ -58,6 +58,12 @@ payments keep their individual totals and approvals. Within-payment allocations
 are estimates; assignments and allocation choices freeze after the first verified
 payment save in that review.
 
+Summary reconciliation recognizes strict negative amounts between the item subtotal
+and before-tax total as discounts, independently of their labels. Distinct discount
+rows are combined and allocated before estimated tax. Free Shipping credits offset
+shipping first; gift-card funding reduces the card total after tax. Duplicate
+discount evidence, unknown after-tax reductions and inconsistent totals stop review.
+
 ## Where privileged checks live
 
 | Boundary | Implementation |

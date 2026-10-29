@@ -259,21 +259,21 @@ it('uses exclusive selected-item checkboxes, blocks excessive reductions and rev
  const r={...syntheticReview,items:[{title:'Synthetic small',priceCents:1000,quantity:1,cardCents:null,suggestedCategoryId:'test-cat'},{title:'Synthetic large',priceCents:3000,quantity:1,cardCents:null,suggestedCategoryId:'test-cat'}],summary:{subtotalCents:4000,shippingCents:0,feeCents:0,couponCents:1500,taxCents:0,giftCents:0},totalCents:2500};
  try{
   vi.mocked(reviewCanadianPurchase).mockResolvedValueOnce({review:r});await screen.start();
-  const mode=screen.host.querySelector<HTMLSelectElement>('select[aria-label="Apply coupon savings to"]')!;
+  const mode=screen.host.querySelector<HTMLSelectElement>('select[aria-label="Apply discounts to"]')!;
   expect([...mode.options].map(o=>o.value)).toEqual(['all','selected']);
-  expect(screen.host.querySelector('[aria-label="Items for coupon savings"]')).toBeNull();
+  expect(screen.host.querySelector('[aria-label="Items for discounts"]')).toBeNull();
   await change(mode,'selected');expect(screen.host.textContent).toContain('Select at least one item');
   expect(screen.host.textContent).not.toContain('Prepare changes');
-  await act(async()=>screen.host.querySelector<HTMLInputElement>('input[aria-label="Coupon savings: item 1"]')!.click());
+  await act(async()=>screen.host.querySelector<HTMLInputElement>('input[aria-label="Discounts: item 1"]')!.click());
   expect(screen.host.textContent).toContain('exceeds the selected items');expect(screen.host.textContent).not.toContain('confirmed prices don’t add up');
-  await act(async()=>{screen.host.querySelector<HTMLInputElement>('input[aria-label="Coupon savings: item 1"]')!.click();screen.host.querySelector<HTMLInputElement>('input[aria-label="Coupon savings: item 2"]')!.click();});
+  await act(async()=>{screen.host.querySelector<HTMLInputElement>('input[aria-label="Discounts: item 1"]')!.click();screen.host.querySelector<HTMLInputElement>('input[aria-label="Discounts: item 2"]')!.click();});
   expect(screen.host.querySelector('ol li:nth-child(2)')!.textContent).toContain('Estimated card share: CAD 15.00');
   await act(async()=>[...screen.host.querySelectorAll('input')].at(-1)!.click());
   vi.mocked(preparePurchaseChanges).mockResolvedValueOnce({preview:{...syntheticProposal(),totalCents:2500,lines:[{categoryName:'Synthetic category',cents:2500}]}});await screen.click('Prepare changes');
   expect(preparePurchaseChanges).toHaveBeenCalledWith('test-review',[false,false],[{id:'test-cat',name:'Synthetic category'},{id:'test-cat',name:'Synthetic category'}],true,undefined,[{kind:'coupon',mode:'selected',method:'proportional',items:[1]}]);
   expect(screen.host.querySelector('[aria-label="Prepared changes"]')).not.toBeNull();
   await change(mode,'all');expect(cancelPurchaseChanges).toHaveBeenCalledWith('test-approval');expect(screen.host.querySelector('[aria-label="Prepared changes"]')).toBeNull();
-  expect(screen.host.querySelector('[aria-label="Items for coupon savings"]')).toBeNull();expect(applyPurchaseChanges).not.toHaveBeenCalled();
+  expect(screen.host.querySelector('[aria-label="Items for discounts"]')).toBeNull();expect(applyPurchaseChanges).not.toHaveBeenCalled();
  }finally{await screen.close();}
 });
 

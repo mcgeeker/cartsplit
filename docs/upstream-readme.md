@@ -15,7 +15,7 @@ Read the [CartSplit overview](../README.md) and
 | Retailers and browser | Amazon.com / Target; Chrome and Firefox builds | English Amazon.ca pages in Firefox |
 | Authentication | YNAB OAuth through a hosted relay | Direct Personal Access Token connection |
 | Workflow | Queue, sync and backfill features | Selected-order review; separate approval for each payment |
-| Distribution | Upstream website and store-release process | Personal development build; signed installation pending |
+| Distribution | Upstream website and store-release process | Mozilla-signed, self-distributed Firefox add-on |
 
 Upstream deployment commands, OAuth client settings, store identities, privacy
 statements and support links are not CartSplit setup instructions. The retained

@@ -29,7 +29,7 @@ export const ORDER_REVIEW_FAILURES={
  subtotal:"The item subtotal row is missing, ambiguous or unreadable.",
  shipping:"The shipping summary row is missing, ambiguous or unreadable.",
  shippingCredit:"The Free Shipping credit row is ambiguous, unreadable or inconsistent with the shipping charge.",
- coupon:"The Your Coupon Savings row is ambiguous, unreadable or inconsistent with the item subtotal.",
+ coupon:"A summary discount is ambiguous, unsupported after tax or inconsistent with the item subtotal.",
  fee:"An environmental fee row is present but ambiguous or unreadable.",
  beforeTax:"The before-tax total row is missing, ambiguous or unreadable.",
  pst:"The PST/RST/QST tax row is missing, ambiguous or unreadable.",

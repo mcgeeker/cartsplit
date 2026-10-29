@@ -1,6 +1,6 @@
 import type {AdjustmentKind, AdjustmentPolicy, PurchaseReview} from './types';
 
-export const adjustmentLabels:Record<AdjustmentKind,string>={fee:'Environmental handling fee',shipping:'Shipping & handling',coupon:'Coupon savings',gift:'Gift funding'};
+export const adjustmentLabels:Record<AdjustmentKind,string>={fee:'Environmental handling fee',shipping:'Shipping & handling',coupon:'Discounts',gift:'Gift funding'};
 const failure={value:'The selected items have no remaining value for proportional distribution. Choose Equally or different items.',policy:'Choose a valid destination and distribution method for each adjustment.',selection:'Select at least one item for each selected-items adjustment.',capacity:'This reduction exceeds the selected items’ available value. Choose more items or another distribution method.',total:'The order adjustments do not reconcile with the card total. Review the order amounts.'};
 export class AdjustmentAllocationError extends Error {
  constructor(readonly reason:keyof typeof failure){super(failure[reason]);}
