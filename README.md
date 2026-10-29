@@ -70,10 +70,10 @@ change requires review and approval.
 The source branch is version **1.4.3**, adding category group headers and preserving
 YNAB's returned category order. After updating from an older version, use
 **Refresh budget categories** once in Connection settings to populate the order.
-The published signed download below remains version **1.4.2**.
+The published signed download below is version **1.4.3**.
 
-**[Download the Mozilla-signed Firefox extension](https://github.com/mcgeeker/cartsplit/releases/tag/v1.4.2).**
-Install `cartsplit-1.4.2-signed.xpi` in the Firefox profile where you want to use it:
+**[Download the Mozilla-signed Firefox extension](https://github.com/mcgeeker/cartsplit/releases/tag/v1.4.3).**
+Install `cartsplit-1.4.3-signed.xpi` in the Firefox profile where you want to use it:
 open `about:addons` → gear → **Install Add-on From File**. Each user connects with
 their own YNAB token entered locally. No public Mozilla Add-ons listing is needed.
 See [installation and maintenance](docs/personal-installation.md) for setup,
