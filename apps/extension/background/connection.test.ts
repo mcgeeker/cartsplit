@@ -143,3 +143,23 @@ it.each([
   await expect(getCategories("test-a")).rejects.toThrow("unreadable category list");
   expect(fetchMock).toHaveBeenCalledOnce();
 });
+
+it("keeps the returned group/category sequence and identities while filtering unavailable categories", async () => {
+  await saveSettings({ accessToken: TOKEN });
+  const category = (id: string, name: string, hidden = false) => ({ id, name, hidden, deleted: false });
+  const group = (id: string, name: string, categories: ReturnType<typeof category>[], hidden = false) =>
+    ({ id, name, categories, hidden, deleted: false });
+  fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ data: { category_groups: [
+    group("group-z", "Everyday", [category("z", "🛒 Groceries"), category("hidden", "Hidden", true), category("b", "Transport")]),
+    group("hidden-group", "Hidden group", [category("hidden-child", "Hidden child")], true),
+    group("internal", "Internal Master Category", [category("internal-child", "Internal")]),
+    group("group-a", "Annual", [category("a", "Annual fees")]),
+    group("same-name", "Everyday", [category("c", "Other")]),
+  ] } })));
+  expect(await getCategories("test-a")).toEqual([
+    { id: "z", name: "🛒 Groceries", groupName: "Everyday", groupId: "group-z" },
+    { id: "b", name: "Transport", groupName: "Everyday", groupId: "group-z" },
+    { id: "a", name: "Annual fees", groupName: "Annual", groupId: "group-a" },
+    { id: "c", name: "Other", groupName: "Everyday", groupId: "same-name" },
+  ]);
+});

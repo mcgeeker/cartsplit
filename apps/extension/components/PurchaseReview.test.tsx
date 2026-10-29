@@ -94,6 +94,37 @@ it("preserves policy consent during preparation and shows failure beside the but
 });
 
 const syntheticReview={reviewId:'test-review',items:[{title:'Synthetic cancel item',quantity:1,priceCents:1000,cardCents:1000}],totalCents:1000,summary:{subtotalCents:1000,feeCents:0,shippingCents:0,taxCents:0,giftCents:0}};
+
+it('groups every product and adjustment category picker without changing category identities or suggestions',async()=>{
+ vi.clearAllMocks();vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);
+ const host=document.createElement('div');document.body.append(host);const root=createRoot(host);
+ const categories=[
+  {id:'z',name:'🛒 Groceries',groupName:'Everyday',groupId:'group-z'},
+  {id:'b',name:'Transport',groupName:'Everyday',groupId:'group-z'},
+  {id:'a',name:'Annual fees',groupName:'Annual',groupId:'group-a'},
+  {id:'c',name:'Other',groupName:'Everyday',groupId:'same-name'},
+ ];
+ try{
+  await act(async()=>root.render(<PurchaseReview categories={categories}/>));
+  vi.mocked(reviewCanadianPurchase).mockResolvedValueOnce({review:{...syntheticReview,
+   items:[{...syntheticReview.items[0]!,suggestedCategoryId:'b'}, {...syntheticReview.items[0]!,title:'Second item',suggestedCategoryId:'a'}],
+   totalCents:2100,summary:{...syntheticReview.summary,subtotalCents:2000,feeCents:100}}});
+  await act(async()=>host.querySelector('button')!.click());
+  const mode=host.querySelector<HTMLSelectElement>('select[aria-label="Apply environmental handling fee to"]')!;
+  await act(async()=>{mode.value='category';mode.dispatchEvent(new Event('change',{bubbles:true}));});
+  const pickers=[...host.querySelectorAll<HTMLSelectElement>('ol select')];
+  expect(pickers).toHaveLength(3);
+  for(const picker of pickers){
+   expect([...picker.querySelectorAll('optgroup')].map(g=>g.label)).toEqual(['Everyday','Annual','Everyday']);
+   expect([...picker.options].map(o=>o.value)).toEqual(['','z','b','a','c']);
+   expect(picker.querySelectorAll('optgroup')[0]!.textContent).toBe('🛒 GroceriesTransport');
+  }
+  expect(pickers.map(p=>p.value)).toEqual(['b','a','']);
+  await act(async()=>{pickers[2]!.value='z';pickers[2]!.dispatchEvent(new Event('change',{bubbles:true}));});
+  expect(pickers[2]!.value).toBe('z');
+  expect(applyPurchaseChanges).not.toHaveBeenCalled();
+ }finally{await act(async()=>root.unmount());host.remove();vi.unstubAllGlobals();}
+});
 const syntheticProposal=()=>({approvalId:'test-approval',expiresAt:Date.now()+300000,date:'2026-10-23',totalCents:1000,lines:[{categoryName:'Synthetic category',cents:1000}]});
 function deferred<T>(){let finish!:(result:T)=>void;const promise=new Promise<T>(resolve=>{finish=resolve;});return {promise,finish};}
 async function cancellationScreen(){

@@ -56,6 +56,19 @@ describe("read-only browser check UI", () => {
     expect(host.textContent).toContain("Categories refreshed from YNAB");
   });
 
+  it("shows group headers and preserves refreshed category order in connection settings", async () => {
+    await mount();
+    vi.mocked(getCategories).mockResolvedValueOnce({ categories: [
+      { id: "z", name: "Groceries", groupName: "Everyday", groupId: "g-z" },
+      { id: "b", name: "Transport", groupName: "Everyday", groupId: "g-z" },
+      { id: "a", name: "Annual fees", groupName: "Annual", groupId: "g-a" },
+    ] });
+    await click("Refresh budget categories");
+    const list = [...host.querySelectorAll("details")].find(detail => detail.querySelector(":scope > summary")?.textContent === "Categories Loaded: 3")!;
+    expect([...list.querySelectorAll("p")].map(header => header.textContent)).toEqual(["Everyday", "Annual"]);
+    expect([...list.querySelectorAll("li")].map(item => item.textContent)).toEqual(["Groceries", "Transport", "Annual fees"]);
+  });
+
   it("opens plan selection without removing the saved local token", async () => {
     await mount();
     await click("Change YNAB Plan");

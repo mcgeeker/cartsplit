@@ -1,4 +1,5 @@
 import DataPrivacyNotice from "./DataPrivacyNotice";
+import { categoryGroups } from "@/lib/category-groups";
 import {scrollExpandedDetails} from "./useRevealScroll";
 import PurchaseReview from "./PurchaseReviewWorkspace";
 import LocalDataSection from "./LocalDataSection";
@@ -64,9 +65,14 @@ export default function ConnectionCheck({ plan, onDisconnect, onChangePlan }: { 
           {categories === null ? <p role="status" className="mt-2 text-[13px] text-muted">Loading categories…</p> :
             <details onToggle={scrollExpandedDetails} className="scroll-mt-3 mt-2 text-[13px]">
               <summary className="cursor-pointer text-muted">Categories Loaded: {categories.length}</summary>
-              <ul className="mt-2 list-disc space-y-1 pl-5 text-text">
-                {categories.map(category => <li key={category.id} className="break-words">{category.name}</li>)}
-              </ul>
+              <div className="mt-2 space-y-2 text-text">
+                {categoryGroups(categories).map(group => <div key={group.key}>
+                  <p className="break-words font-semibold">{group.name}</p>
+                  <ul className="mt-1 list-disc space-y-1 pl-5">
+                    {group.categories.map(category => <li key={category.id} className="break-words">{category.name}</li>)}
+                  </ul>
+                </div>)}
+              </div>
               {categories.length === 0 && <p className="mt-2 text-muted">No categories loaded.</p>}
             </details>}
         </section>

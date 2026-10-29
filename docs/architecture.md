@@ -88,7 +88,7 @@ database or invoke privileged sidebar commands.
 | Token and chosen plan | Extension-origin `cartsplit-connection` IndexedDB. Disconnect removes the connection; revocation is a separate YNAB action. |
 | Exact product/category choices | `lineitem` database, `learnedProducts` store. Kept until corrected, removed on conflict or explicitly cleared. |
 | Product vectors | `productEmbeddings` store. Reviewed records have empty title fields; up to 50 vectors per category and 500 per plan. Exact choices survive vector eviction. |
-| Category cache and older records | Existing `lineitem` stores. Category caches carry a plan tag. Older data remains dormant; there is no automatic migration or backfill. |
+| Category cache and older records | Existing `lineitem` stores. Category caches carry a plan tag, returned sequence positions and available group IDs. Older data remains dormant; there is no automatic migration or backfill. |
 | Public model files | Browser-managed model cache. Application-data cleanup does not remove these files. |
 
 **In memory:** review drafts, prepared approvals, category-name vectors, session
@@ -138,3 +138,13 @@ The [October 25 security review](security-review-2026-10-25.md) is dated evidenc
 It is not a certification of later builds. Model accuracy, memory use and first-use
 latency have not been benchmarked. New packages need fresh build and source-rebuild
 verification before any authorized signing.
+
+## Category display order
+
+Version 1.4.3 preserves the YNAB API response sequence through local cache reads.
+Product and separate-adjustment pickers use non-selectable category group headers;
+Connection settings shows the same groups. Group IDs distinguish groups sharing a
+name. Category IDs, emoji and editable suggestions are preserved. Existing caches
+need one **Refresh budget categories** after updating to acquire positions.
+The API does not document a custom-position field or guarantee agreement with
+manually arranged plan order; CartSplit preserves the order it receives.

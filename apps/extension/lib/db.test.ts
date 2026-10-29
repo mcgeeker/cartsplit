@@ -145,6 +145,48 @@ it("hides categories from an uncommitted or different plan without migrating old
   expect(await db.getAllCategories("plan-a")).toEqual([]);
   expect(await db.getAllCategories("plan-b")).toEqual([category]);
 });
+
+it("preserves YNAB category order across cache reopening, refreshes and plan switches", async () => {
+  const db = await freshDb();
+  // Deliberately differs from both alphabetical and primary-key order.
+  const categories = [
+    { id: "z", name: "🛒 Groceries", groupName: "Everyday", groupId: "group-z" },
+    { id: "b", name: "Transport", groupName: "Everyday", groupId: "group-z" },
+    { id: "a", name: "Annual fees", groupName: "Annual", groupId: "group-a" },
+  ];
+  await db.putCategories(categories, undefined, "plan-a");
+  const reopened = await freshDb();
+  expect(await reopened.getAllCategories("plan-a")).toEqual(categories);
+  const reordered = [categories[2]!, categories[1]!, categories[0]!];
+  await reopened.putCategories(reordered, undefined, "plan-a");
+  expect(await reopened.getAllCategories("plan-a")).toEqual(reordered);
+  await reopened.putCategories([categories[1]!], undefined, "plan-b");
+  expect(await reopened.getAllCategories("plan-a")).toEqual([]);
+  expect(await reopened.getAllCategories("plan-b")).toEqual([categories[1]]);
+});
+
+it("reads a legacy cache without positions and acquires order on refresh without a schema upgrade", async () => {
+  const db = await freshDb();
+  await db.getAllCategories();
+  const categories = [
+    { id: "z", name: "Zed", groupName: "Test" },
+    { id: "a", name: "Alpha", groupName: "Test" },
+  ];
+  await new Promise<void>((resolve, reject) => {
+    const request = indexedDB.open("lineitem", 2);
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const handle = request.result;
+      const tx = handle.transaction("categories", "readwrite");
+      for (const category of categories) tx.objectStore("categories").put({ ...category, planId: "plan-a" });
+      tx.oncomplete = () => { handle.close(); resolve(); };
+      tx.onabort = () => { handle.close(); reject(tx.error); };
+    };
+  });
+  expect(await db.getAllCategories("plan-a")).toEqual([categories[1], categories[0]]);
+  await db.putCategories(categories, undefined, "plan-a");
+  expect(await db.getAllCategories("plan-a")).toEqual(categories);
+});
 it("rejects a blocked upgrade promptly and recovers after the old connection closes", async () => {
   await seedV1([]);
   const held = await new Promise<IDBDatabase>((resolve, reject) => {

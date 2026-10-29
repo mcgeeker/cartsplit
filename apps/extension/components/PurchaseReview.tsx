@@ -1,4 +1,5 @@
 import PurchaseReceipt from "./PurchaseReceipt";
+import CategoryOptions from "./CategoryOptions";
 import {useRevealScroll,scrollExpandedDetails} from "./useRevealScroll";
 import {splitChargeAllocation} from "@/lib/split-charge-allocation";
 import {reviewProductTotals} from "@/lib/review-product-totals";
@@ -156,14 +157,14 @@ export default function PurchaseReview({categories,visible=true,interactive=true
  {!singleItem&&item.quantity!==1&&<label className="flex items-start gap-2 leading-relaxed"><input className="mt-1 shrink-0" type="checkbox" checked={lineTotals[i]??false} disabled={busy||locked||splitLocked} onChange={e=>{clearProposal();setLineTotals(p=>p.map((v,n)=>n===i?e.target.checked:v));}}/> Total price confirmed{productTotals?` (${cad(productTotals[i]!)})`:""}.</label>}
  <p className="text-muted">{item.suggestedCategoryId&&choices[i]===item.suggestedCategoryId?(item.suggestionSource==="history"?"Suggested from similar products you previously categorized.":item.suggestionSource==="model"?"Suggested by the local model from your category names. Check this guess.":"Suggested from your saved choice for this product."):""}</p>
  {!singleItem&&chargePicker(i,`item ${i+1}`)}
- <label className="flex min-w-0 flex-col gap-1 font-semibold"><span className={singleItem?undefined:"sr-only"}>{singleItem?"Category":`Category for item ${i+1}`}</span><select className="w-full min-w-0 rounded-control border border-line-strong bg-surface px-2 py-2 font-normal text-text" value={choices[i]??""} disabled={busy||locked||splitLocked} onChange={e=>{clearProposal();setChoices(p=>p.map((v,n)=>n===i?e.target.value:v));}}><option value="">Choose category…</option>{categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
+ <label className="flex min-w-0 flex-col gap-1 font-semibold"><span className={singleItem?undefined:"sr-only"}>{singleItem?"Category":`Category for item ${i+1}`}</span><select className="w-full min-w-0 rounded-control border border-line-strong bg-surface px-2 py-2 font-normal text-text" value={choices[i]??""} disabled={busy||locked||splitLocked} onChange={e=>{clearProposal();setChoices(p=>p.map((v,n)=>n===i?e.target.value:v));}}><CategoryOptions categories={categories}/></select></label>
  </div></li>)}
  {estimate?.slice(review.items.length).map((line,n)=>{const i=review.items.length+n;if(adjustmentIsDistributed(line.kind,adjustments))return null;return <li key={line.kind} className="min-w-0 pl-1">
  <strong className="block truncate font-bold" title={line.title}>{line.title}</strong>
  <div className="ml-2 mt-2 flex min-w-0 flex-col gap-2 text-[13px]">
  <div className="space-y-1 text-muted"><p>Amount: {cad(line.itemCents)}</p><p>Estimated card share: {displayEstimate?cad(displayEstimate[i]!.cardCents):"assign payments first"}</p></div>
  {chargePicker(i,line.title.toLowerCase())}
- <label className="flex min-w-0 flex-col gap-1 font-semibold"><span className="sr-only">Category for {line.title.toLowerCase()}</span><select className="w-full min-w-0 rounded-control border border-line-strong bg-surface px-2 py-2 font-normal text-text" value={choices[i]??""} disabled={busy||locked||splitLocked} onChange={e=>{clearProposal();setChoices(p=>p.map((v,j)=>j===i?e.target.value:v));}}><option value="">Choose category…</option>{categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
+ <label className="flex min-w-0 flex-col gap-1 font-semibold"><span className="sr-only">Category for {line.title.toLowerCase()}</span><select className="w-full min-w-0 rounded-control border border-line-strong bg-surface px-2 py-2 font-normal text-text" value={choices[i]??""} disabled={busy||locked||splitLocked} onChange={e=>{clearProposal();setChoices(p=>p.map((v,j)=>j===i?e.target.value:v));}}><CategoryOptions categories={categories}/></select></label>
  </div></li>;})}
  </ol>
 

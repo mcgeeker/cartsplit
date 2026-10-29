@@ -19,6 +19,7 @@ const CANADIAN_READ = Symbol("canadian-single-candidate-read");
 const REVIEW_WRITE = Symbol("reviewed-purchase-write");
 
 interface YnabCategoryGroup {
+  id?: string;
   name: string;
   hidden: boolean;
   deleted: boolean;
@@ -135,7 +136,8 @@ export async function getCategories(planId: string, signal?: AbortSignal): Promi
       if (typeof category.id !== "string" || !/^[\w-]+$/.test(category.id) || ids.has(category.id) ||
           typeof category.name !== "string" || !category.name.trim() || category.name.length > 1000 || result.length >= 10000) throw invalid();
       ids.add(category.id);
-      result.push({ id: category.id, name: category.name, groupName: group.name });
+      result.push({ id: category.id, name: category.name, groupName: group.name,
+        ...(typeof group.id === "string" ? { groupId: group.id } : {}) });
     }
   }
   return result;

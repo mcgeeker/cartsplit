@@ -50,6 +50,8 @@ export interface Category {
   name: string;
   /** YNAB category group name, e.g. "Frequent", "Non-Monthly". */
   groupName: string;
+  /** Stable group identity; optional for cached categories from older versions. */
+  groupId?: string;
 }
 
 export interface AmazonCaPageCheck {

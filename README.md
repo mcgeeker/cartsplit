@@ -67,6 +67,11 @@ CartSplit is currently a **personal development project** for **Firefox,
 Amazon.ca, English pages and CAD**. You choose the YNAB plan, and every financial
 change requires review and approval.
 
+The source branch is version **1.4.3**, adding category group headers and preserving
+YNAB's returned category order. After updating from an older version, use
+**Refresh budget categories** once in Connection settings to populate the order.
+The published signed download below remains version **1.4.2**.
+
 **[Download the Mozilla-signed Firefox extension](https://github.com/mcgeeker/cartsplit/releases/tag/v1.4.2).**
 Install `cartsplit-1.4.2-signed.xpi` in the Firefox profile where you want to use it:
 open `about:addons` → gear → **Install Add-on From File**. Each user connects with

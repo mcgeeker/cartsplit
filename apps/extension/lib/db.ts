@@ -135,9 +135,13 @@ export async function getAllProductEmbeddings(planId: string): Promise<ProductEm
 
 export async function getAllCategories(planId?: string): Promise<Category[]> {
   const store = await getStore("categories");
-  const rows = await requestToPromise<(Category & { planId?: string })[]>(store.getAll());
+  const rows = await requestToPromise<(Category & { planId?: string; position?: number })[]>(store.getAll());
   return rows.filter(row => planId === undefined || row.planId === planId)
-    .map(({ id, name, groupName }) => ({ id, name, groupName }));
+    // IndexedDB reads in primary-key order. Restore the sequence from YNAB;
+    // old caches have no positions until the owner refreshes categories.
+    .sort((a, b) => (a.position ?? Number.MAX_SAFE_INTEGER) - (b.position ?? Number.MAX_SAFE_INTEGER))
+    .map(({ id, name, groupName, groupId }) => ({ id, name, groupName,
+      ...(groupId !== undefined ? { groupId } : {}) }));
 }
 
 /** Replace all categories atomically. */
@@ -145,7 +149,7 @@ export async function putCategories(categories: Category[], signal?: AbortSignal
   return mutateStores(["categories"], (tx) => {
     const store = tx.objectStore("categories");
     store.clear();
-    for (const cat of categories) store.put({ ...cat, ...(planId ? { planId } : {}) });
+    categories.forEach((cat, position) => store.put({ ...cat, position, ...(planId ? { planId } : {}) }));
   }, signal);
 }
 
