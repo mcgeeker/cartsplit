@@ -26,8 +26,9 @@ it("reads only on click without a test-plan checkbox and clears canceled results
   expect(host.querySelectorAll('select')).toHaveLength(1);
   expect(host.querySelectorAll('input')).toHaveLength(0);expect(host.textContent).toContain('No distribution is needed');
   expect(host.textContent).toContain('Choose a category for this item.');
-  const explanation=[...host.querySelectorAll('details')].find(d=>d.querySelector('summary')?.textContent==='How this works')!;
-  expect(explanation.open).toBe(false);
+  const explanation=host.querySelector<HTMLButtonElement>('button[aria-label="Purchase review information"]')!;
+  expect(explanation).not.toBeNull();expect(explanation.getAttribute('aria-expanded')).toBe('false');
+  expect(explanation.querySelector('svg')).not.toBeNull();
   await act(async()=>[...host.querySelectorAll("button")].find(b=>b.textContent==="Cancel review")!.click());expect(host.textContent).not.toContain("Synthetic item");expect([...host.querySelectorAll('button')].find(b=>b.textContent==='Review selected order')!.disabled).toBe(false);
  }finally{await act(async()=>root.unmount());host.remove();vi.unstubAllGlobals();}
 });
@@ -329,7 +330,7 @@ it.each([false,true])('reveals an async proposal after it appears without steali
  vi.stubGlobal('matchMedia',vi.fn(()=>({matches:reduced})));
  try{
   vi.mocked(reviewCanadianPurchase).mockResolvedValueOnce({review:syntheticReview});await screen.start();
-  expect(scroll.mock.instances).toContain(screen.host.querySelector('fieldset'));
+  expect(scroll).not.toHaveBeenCalled();
   await screen.choose();scroll.mockClear();
   const pending=deferred<Awaited<ReturnType<typeof preparePurchaseChanges>>>();vi.mocked(preparePurchaseChanges).mockReturnValueOnce(pending.promise);
   await screen.click('Prepare changes');expect(scroll).not.toHaveBeenCalled();

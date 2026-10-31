@@ -55,8 +55,8 @@ export async function reviewCanadianPurchase(confirmed: boolean): Promise<{revie
  return await send({type:"REVIEW_CA_PURCHASE",confirmed}) as {review?: import("./types").PurchaseReview;error?:string;reason?:string;paymentDiagnostic?:import("./order-review-status").PaymentDiagnostic};
 }
 
-export async function preparePurchaseChanges(reviewId:string,lineTotals:boolean[],categories:{id:string;name:string}[],confirmed:boolean,split?:import("./types").SplitChargeSelection,adjustments?:import("./types").AdjustmentPolicy[]):Promise<{preview?:import("./types").PurchaseApprovalPreview;error?:string}>{
- return await send({type:"PREPARE_PURCHASE_APPROVAL",reviewId,lineTotals,categories,confirmed,...(split?{split}:{}),...(adjustments?{adjustments}:{})}) as {preview?:import("./types").PurchaseApprovalPreview;error?:string};
+export async function preparePurchaseChanges(reviewId:string,lineTotals:boolean[],categories:{id:string;name:string}[],confirmed:boolean,split?:import("./types").SplitChargeSelection,adjustments?:import("./types").AdjustmentPolicy[],memos?:import("./types").PurchaseMemoDraft):Promise<{preview?:import("./types").PurchaseApprovalPreview;error?:string}>{
+ return await send({type:"PREPARE_PURCHASE_APPROVAL",reviewId,lineTotals,categories,confirmed,...(split?{split}:{}),...(adjustments?{adjustments}:{}),...(memos?{memos}:{})}) as {preview?:import("./types").PurchaseApprovalPreview;error?:string};
 }
 
 export async function applyPurchaseChanges(approvalId:string,confirmed:boolean):Promise<{ok?:boolean;error?:string;uncertain?:boolean;learningSaved?:boolean;savedChargeIndex?:number}>{return await send({type:"APPLY_PURCHASE_APPROVAL",approvalId,confirmed}) as {ok?:boolean;error?:string;uncertain?:boolean;learningSaved?:boolean;savedChargeIndex?:number};}

@@ -31,7 +31,7 @@ export default defineConfig({
   // are unaffected.
   imports: {
     dirsScanOptions: {
-      fileFilter: (file) => !/\.(stories|test)\.[jt]sx?$/.test(file),
+      fileFilter: (file) => !/\.(stories|test)\.[jt]sx?$/.test(file) && !/\s+\d+\.[jt]sx?$/.test(file),
     },
   },
   manifest: ({ browser }) => ({
@@ -68,6 +68,7 @@ export default defineConfig({
       extension_pages: "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; object-src 'none'; base-uri 'none'; form-action 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://api.ynab.com https://huggingface.co https://*.huggingface.co https://*.hf.co",
     },
     host_permissions: [
+      "https://app.ynab.com/*",        // read-only account-register order buttons
       "https://www.amazon.ca/*",       // explicitly selected Canadian page check
       "https://api.ynab.com/*",
       "https://huggingface.co/*",       // model metadata + resolve redirect

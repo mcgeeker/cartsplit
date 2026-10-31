@@ -4,6 +4,11 @@ Build the Firefox extension from the repository root. For everyday use, read
 [Purchase review](purchase-review.md); for data and security boundaries, read
 [Technical design and privacy](architecture.md).
 
+The signed 1.9.6 prerelease includes register lookup and editable memos. Use
+[the trial and 2.0 acceptance guide](2.0-development.md) for those workflows.
+Development builds increment through 1.9.x while the owner tries the extension;
+2.0.0 remains pending until the acceptance/review gate passes.
+
 ## Build and load a development copy
 
 1. **Install the pinned dependencies.** Use the package manager recorded in
@@ -101,3 +106,48 @@ does not rerun those checks.
 The existing Transformers.js `import.meta`/IIFE warning is nonfatal. Numerical
 suggestion quality, first-use latency and memory use have not been benchmarked.
 Keep real tokens, purchase records and Firefox profiles out of fixtures and archives.
+
+## Prepare a release with one command
+
+Development rehearsals can explicitly include individual newly authored source
+files without staging or sweeping unrelated untracked files into a package:
+`--rehearsal --include-source apps/extension/path/to/new.ts` (repeat for each
+reviewed file). This option is refused for release candidates; normal releases
+still require intentionally added source files to be tracked by Git.
+
+Fetch origin and tags first (`git fetch origin`), review the intended changes, and
+increase `apps/extension/package.json` to a version higher than all local release
+tags. Stage intentionally added source files with Git before preparing: the helper
+copies tracked working files and excludes ignored/untracked files, including stray
+copies. Uncommitted tracked edits are included and noted in the report.
+
+```sh
+corepack pnpm release:prepare --output artifacts/release-VERSION
+```
+
+Choose a new output directory each time; existing candidates are never overwritten.
+The command installs frozen dependencies with hooks disabled, explicitly prepares
+WXT, typechecks, tests, builds Firefox and runs the manifest guard in a temporary
+snapshot outside the checkout. It packages unsigned/matching-source ZIPs, extracts
+the sources into another independent directory, repeats the checks and requires
+all built files to match byte for byte. Your working build output stays untouched.
+
+The output contains `packages/`, SHA-256 sums and build-file hashes, per-step logs,
+`REPORT.json`, `VERIFICATION.md` and a release-notes template to edit. A failed run
+has status `failed`; inspect its logs and use a new directory after correcting the
+cause. Only `ready-for-signing` means preparation passed. Package retrieval needs
+network access or a populated pnpm cache; add `--offline` to prohibit retrieval.
+Allow approximately 3–10 minutes with cached dependencies; downloading can add time.
+
+To exercise the tooling without increasing or releasing the installed version:
+
+```sh
+corepack pnpm release:prepare --rehearsal --offline --output artifacts/release-rehearsal
+python3 -m unittest discover -s scripts -p 'test_prepare_release.py'
+```
+
+Rehearsals report `rehearsal-passed` and must not be submitted. The helper does not
+change the version, sign, upload, install, publish, push Git commits or access YNAB.
+Review notes and sources before separately authorized Mozilla signing; compare the
+signed package against `BUILD-FILES.json`, then install and accept it before a
+separately authorized GitHub release. Keep the signed XPI and matching sources.

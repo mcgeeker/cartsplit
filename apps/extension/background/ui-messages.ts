@@ -2,6 +2,7 @@ import { browser } from "wxt/browser";
 import type { MessageRequest } from "@/lib/types";
 
 import { SIDEBAR_COMMANDS } from "@/lib/verification";
+import { LOOKUP_COMMANDS } from "@/lib/register-lookup";
 
 /** A self extension id alone also admits content scripts. Privileged requests
  * must come from the actual sidebar page, with no tab. Retired content-result and batch
@@ -13,6 +14,7 @@ export function createUiMessageListener(dispatch: (message: MessageRequest) => P
       return false;
     }
     const type = (message as { type?: unknown }).type;
+    if (typeof type === "string" && LOOKUP_COMMANDS.has(type)) return false;
     if (sender.id !== browser.runtime.id || sender.tab !== undefined ||
         sender.url !== browser.runtime.getURL("/sidepanel.html")) {
       sendResponse({ error: "This command is only available in the extension sidebar." });

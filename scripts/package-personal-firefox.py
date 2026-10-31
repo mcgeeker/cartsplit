@@ -24,9 +24,11 @@ def source_files():
     # files in an extracted tree and changes CSS even with identical app source.
     names = [".gitignore", "package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", "LICENSE",
              "scripts/verify-personal-build.py", "scripts/package-personal-firefox.py",
+             "scripts/prepare-release.py", "scripts/test_prepare_release.py",
              "docs/personal-installation.md", "docs/architecture.md",
              "docs/development.md", "docs/local-data-removal.md",
-             "docs/security-review-2026-10-25.md", "docs/retired-code-2026-10-25.txt"]
+             "docs/security-review-2026-10-25.md", "docs/security-review-2026-10-29.md",
+             "docs/2.0-development.md", "docs/purchase-review.md", "docs/retired-code-2026-10-25.txt"]
     paths = [ROOT / name for name in names]
     for folder in ["apps/extension", "packages/ui"]:
         for path in (ROOT / folder).rglob("*"):

@@ -51,4 +51,10 @@ describe("sidebar-only command boundary", () => {
     expect(dispatch).not.toHaveBeenCalled();
     expect(respond).toHaveBeenCalledWith({ error: expect.any(String) });
   });
+  it("leaves lookup messages to their own listener and denies lookup tabs financial access",()=>{
+    expect(listen({type:'LOOKUP_STATUS'},{...trusted,url:'moz-extension://test-only-extension/order-lookup.html',tab:{id:40}},respond)).toBe(false);
+    expect(respond).not.toHaveBeenCalled();
+    expect(listen({type:'APPLY_PURCHASE_APPROVAL'},{...trusted,url:'moz-extension://test-only-extension/order-lookup.html',tab:{id:40}},respond)).toBe(false);
+    expect(dispatch).not.toHaveBeenCalled();expect(respond).toHaveBeenCalledWith({error:expect.stringContaining('only available')});
+  });
 });

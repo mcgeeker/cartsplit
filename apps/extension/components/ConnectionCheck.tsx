@@ -1,9 +1,11 @@
 import DataPrivacyNotice from "./DataPrivacyNotice";
+import OrderLookup from "./OrderLookup";
 import { categoryGroups } from "@/lib/category-groups";
 import {scrollExpandedDetails} from "./useRevealScroll";
 import PurchaseReview from "./PurchaseReviewWorkspace";
 import LocalDataSection from "./LocalDataSection";
 import { useEffect, useState } from "react";
+import { browser } from "wxt/browser";
 import type { Category } from "@/lib/types";
 import { BrandRow, Button, LinkButton, StatusMessage } from "@lineitem/ui";
 import { clearSettings, getCategories, refreshCategories, type PlanInfo } from "@/lib/messaging";
@@ -53,7 +55,8 @@ export default function ConnectionCheck({ plan, onDisconnect, onChangePlan }: { 
       <BrandRow size={34} />
       <p className="mt-2 text-muted">Categorize your Amazon.ca purchases in YNAB.</p>
     </header>
-    <PurchaseReview key={plan.id} categories={categories ?? []} />
+    <OrderLookup embedded />
+    <PurchaseReview key={plan.id} categories={categories ?? []} onReviewStart={() => { void browser.runtime.sendMessage({ type: "LOOKUP_DISMISS" }).catch(() => {}); }} />
     <details onToggle={scrollExpandedDetails} className="scroll-mt-3 rounded-control border border-line p-3">
       <summary className="cursor-pointer font-semibold">Connection settings</summary>
       <div className="mt-1 flex flex-col gap-3">

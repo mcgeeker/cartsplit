@@ -227,9 +227,21 @@ it('checks YNAB eligibility before category GET during automatic review and reje
  const command:MessageRequest={type:'REVIEW_CA_PURCHASE',confirmed:true};
  const denied=await new Promise<any>(resolve=>listener(command,{...sender,tab:{id:51}},resolve));expect(denied).toHaveProperty('error');expect(fetchMock).not.toHaveBeenCalled();
  const r=await send(command);expect(r.review).toMatchObject({items:[{title:'Synthetic first',cardCents:null,quantity:1},{title:'Synthetic second',cardCents:null,quantity:1}],totalCents:20057,allocationPending:true,summary:{feeCents:60,giftCents:500}});
- expect(JSON.stringify(r)).not.toMatch(/test-only-token|test-account|synthetic-fixed|B00000000/);
+ expect(JSON.stringify(r)).not.toMatch(/test-only-token|test-account|transactionId|B00000000/);
  expect(fetchMock.mock.calls.map(([url])=>url.replace('https://api.ynab.com/v1',''))).toEqual(['/plans',"/plans/test-plan/accounts",`/plans/test-plan/transactions?since_date=${sinceDate}`,"/plans/test-plan/categories"]);
  expect((await db.captureLocalData()).counts).toEqual(before.counts);
+});
+it('routes approved parent and product memos through one verified repeated-category save and receipt',async()=>{
+ await fixedCanadianApprovalCase();const old=api.tabs.sendMessage.getMockImplementation()!;
+ api.tabs.sendMessage.mockImplementation(async(id:number,m:{type:string})=>m.type==='READ_CA_ORDER_SUMMARY'?{orderId:'synthetic-fixed',currency:'unspecified',items:[{title:'Synthetic first',productId:'B000000001',priceCents:1133,quantity:1,lineCents:1133},{title:'Synthetic second',productId:'B000000002',priceCents:18924,quantity:1,lineCents:18924}],subtotalCents:20057,shippingCents:0,feeCents:0,taxCents:0,giftCents:0,totalCents:20057}:old(id,m));
+ const {review}=await send({type:'REVIEW_CA_PURCHASE',confirmed:true});expect(review.transactionMemo).toBe('Synthetic preserved memo');
+ const memos={transaction:'Synthetic preserved memo\nAmazon.ca order synthetic-fixed: https://www.amazon.ca/your-orders/order-details?orderID=synthetic-fixed',lines:['First product','Second product']};
+ const {preview}=await send({type:'PREPARE_PURCHASE_APPROVAL',reviewId:review.reviewId,lineTotals:[false,false],categories:[{id:'test-grocery',name:'🛒 Groceries'},{id:'test-grocery',name:'🛒 Groceries'}],confirmed:true,adjustments:[],memos});
+ expect(preview).toMatchObject({memo:memos.transaction,lines:[{cents:1133,memo:'First product'},{cents:18924,memo:'Second product'}]});
+ expect(await send({type:'APPLY_PURCHASE_APPROVAL',approvalId:preview.approvalId,confirmed:true})).toMatchObject({ok:true});
+ const writes=fetchMock.mock.calls.filter(([,options])=>options.method==='PUT');expect(writes).toHaveLength(1);
+ expect(JSON.parse(writes[0]![1].body).transaction).toMatchObject({memo:memos.transaction,category_id:null,subtransactions:[{category_id:'test-grocery',amount:-11330,memo:'First product'},{category_id:'test-grocery',amount:-189240,memo:'Second product'}]});
+ expect(await send({type:'GET_PURCHASE_ORDER_SESSION',orderKey:'synthetic-fixed'})).toMatchObject({session:{complete:true,receipts:[{memo:memos.transaction,lines:[{memo:'First product'},{memo:'Second product'}]}]}});
 });
 
 it('prepares and saves reusable automatic review through actual routing, then learns and suggests exact products',async()=>{
@@ -250,7 +262,7 @@ it('prepares and saves reusable automatic review through actual routing, then le
  expect(await send({...command,confirmed:false})).toMatchObject({uncertain:false});
  expect(await send(command)).toEqual({ok:true,learningSaved:true});expect(await send(command)).toMatchObject({uncertain:false});
  const writes=fetchMock.mock.calls.filter(([,o])=>o.method==='PUT');expect(writes).toHaveLength(1);
- const update=JSON.parse(writes[0]![1].body).transaction;expect(Object.keys(update).sort()).toEqual(['approved','category_id','subtransactions']);expect(update.approved).toBe(true);expect(update.subtransactions).toHaveLength(2);expect(update.subtransactions.reduce((n:number,l:{amount:number})=>n+l.amount,0)).toBe(-200570);expect(update.subtransactions.every((l:{memo:unknown})=>l.memo===null)).toBe(true);
+ const update=JSON.parse(writes[0]![1].body).transaction;expect(Object.keys(update).sort()).toEqual(['approved','category_id','subtransactions']);expect(update.approved).toBe(true);expect(update.subtransactions).toHaveLength(3);expect(update.subtransactions.reduce((n:number,l:{amount:number})=>n+l.amount,0)).toBe(-200570);expect(update.subtransactions.every((l:{memo:unknown})=>l.memo===null)).toBe(true);
  expect((await db.captureLocalData()).counts).toEqual({...before.counts,learnedProducts:before.counts.learnedProducts+2,productEmbeddings:before.counts.productEmbeddings+2});
  const next=await send({type:'REVIEW_CA_PURCHASE',confirmed:true});expect(next.review.items.map((i:{suggestedCategoryId:string})=>i.suggestedCategoryId)).toEqual(['test-grocery','test-other']);
  expect(next.review.items.map((i:{suggestionSource:string})=>i.suggestionSource)).toEqual(['exact','exact']);
@@ -322,7 +334,7 @@ it('routes split-shipment matching as separate eligible charges and includes pro
   if(url.includes('/transactions?')){const body=await response.json(),base=body.data.transactions[0];first??={...base,id:'synthetic-first',date:'2026-01-01',amount:-40000};second??={...base,id:'synthetic-second',date:'2026-01-03',amount:-60000};body.data.transactions=[first,second];return new Response(JSON.stringify(body));}return response;
  });
  const {review,error}=await send({type:'REVIEW_CA_PURCHASE',confirmed:true});expect(error).toBeUndefined();
- expect(review.matchedCharges).toEqual([{date:'2026-01-01',cents:4000,eligible:true},{date:'2026-01-03',cents:6000,eligible:true}]);expect(review.items).toHaveLength(2);expect(fetchMock.mock.calls.some(([url])=>url.endsWith('/categories'))).toBe(true);
+ expect(review.matchedCharges).toEqual([{date:'2026-01-01',cents:4000,eligible:true,memo:'Synthetic preserved memo'},{date:'2026-01-03',cents:6000,eligible:true,memo:'Synthetic preserved memo'}]);expect(review.items).toHaveLength(2);expect(fetchMock.mock.calls.some(([url])=>url.endsWith('/categories'))).toBe(true);
  const prepared=await send({type:'PREPARE_PURCHASE_APPROVAL',reviewId:review.reviewId,lineTotals:[],categories:[],confirmed:true});expect(prepared.error).toBeTruthy();expect(prepared.preview).toBeUndefined();
  expect(fetchMock.mock.calls.every(([,o])=>!o.method||o.method==='GET')).toBe(true);expect(JSON.stringify(review)).not.toMatch(/test-only-token|synthetic-first|synthetic-second|test-account/);
  const categories=[{id:'test-grocery',name:'🛒 Groceries'},{id:'test-other',name:'❗️ Stuff I forgot to plan for'}];

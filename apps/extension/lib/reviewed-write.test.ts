@@ -23,7 +23,7 @@ it("sends only one fixed PUT with unchanged parent approval and empty split memo
 it.each([{id:"replacement"},{date:"2026-10-23"},{approved:true},{cleared:"cleared"},{cleared:"reconciled"},{memo:"Changed"},{payee_id:"changed"},{flag_color:"red"},{import_id:"imported"},{category_id:"categorized"},{subtransactions:[{}]}])("rejects changed target %j",async change=>{
  seed({...tx,...change});await expect(write()).rejects.toThrow();expect(network).toHaveBeenCalledTimes(3);expect(beforeSend).not.toHaveBeenCalled();
 });
-it.each([{amountMilliunits:-12480},{categoryId:"../unsafe"},{memo:"Unexpected memo"}])("rejects changed proposal %j before I/O",async change=>{
+it.each([{amountMilliunits:-12480},{categoryId:"../unsafe"},{memo:"x".repeat(501)}])("rejects invalid proposal before I/O",async change=>{
  await expect(write([{...lines[0]!,...change} as ReviewedLine,lines[1]!])).rejects.toThrow();expect(network).not.toHaveBeenCalled();
 });
 it("cancels during final credential lookup and rechecks context after final candidate reads",async()=>{
@@ -100,4 +100,48 @@ it('does not confirm a response that rewrites the bank date to Amazon’s date',
  seed({...tx,date:'2026-10-24'},saved);
  await expect(writeReviewedSplit(plan.id,{...target,date:'2026-10-24'},lines,new AbortController().signal,beforeSend,validateContext)).rejects.toThrow('Could not verify');
  expect(network.mock.calls.filter(([,o])=>o.method==='PUT')).toHaveLength(1);
+});
+
+it('writes approved parent/product memos and retains separate repeated-category lines',async()=>{
+ const products:ReviewedLine[]=[{...lines[0]!,amountMilliunits:-100000,memo:'First product'},{...lines[0]!,amountMilliunits:-100570,memo:'Second product'}];
+ const memo='Existing memo\nAmazon order link';
+ seed(tx,{...tx,memo,category_id:null,subtransactions:products.map(l=>({category_id:l.categoryId,amount:l.amountMilliunits,memo:l.memo,deleted:false}))});
+ await writeReviewedSplit(plan.id,target,products,new AbortController().signal,beforeSend,validateContext,memo);
+ expect(JSON.parse(network.mock.calls[3]![1].body).transaction).toEqual({memo,category_id:null,approved:false,subtransactions:products.map(l=>({category_id:l.categoryId,amount:l.amountMilliunits,memo:l.memo}))});
+});
+it('accepts YNAB’s internal Split category marker only with the complete approved product lines',async()=>{
+ const products:ReviewedLine[]=[{...lines[0]!,amountMilliunits:-100000,memo:'First product'},{...lines[0]!,amountMilliunits:-100570,memo:'Second product'}];
+ const memo='Approved parent memo';
+ seed(tx,{...tx,memo,category_id:'synthetic-internal-split',category_name:'Split',subtransactions:products.map(l=>({category_id:l.categoryId,amount:l.amountMilliunits,memo:l.memo,deleted:false}))});
+ await writeReviewedSplit(plan.id,target,products,new AbortController().signal,beforeSend,validateContext,memo);
+ expect(network.mock.calls.filter(([,options])=>options.method==='PUT')).toHaveLength(1);
+ expect(JSON.parse(network.mock.calls[3]![1].body).transaction.category_id).toBeNull();
+});
+it.each([
+ {category_id:'synthetic-internal-split',category_name:'Unrelated category'},
+ {category_id:'synthetic-internal-split'},
+ {category_id:'../invalid',category_name:'Split'},
+ {category_id:'synthetic-internal-split',category_name:'Split',subtransactions:[saved.subtransactions[0]]},
+ {category_id:'synthetic-internal-split',category_name:'Split',subtransactions:saved.subtransactions.map((line,index)=>({...line,memo:index===0?'Unapproved memo':null}))},
+])('still rejects incorrect parent markers or split contents: %j',async change=>{
+ seed(tx,{...saved,...change});await expect(write()).rejects.toThrow('Could not verify');
+ expect(network.mock.calls.filter(([,options])=>options.method==='PUT')).toHaveLength(1);
+});
+it('verifies identical split lines as a multiset without assuming response order',async()=>{
+ const products:ReviewedLine[]=[{...lines[0]!,amountMilliunits:-100000,memo:'Same product'},{...lines[0]!,amountMilliunits:-100000,memo:'Same product'},{...lines[1]!,amountMilliunits:-570,memo:'Shipping'}];
+ seed(tx,{...tx,subtransactions:[...products].reverse().map(l=>({category_id:l.categoryId,amount:l.amountMilliunits,memo:l.memo,deleted:false}))});
+ await write(products);
+});
+it.each(['parent','line','missing duplicate'])('never confirms a mismatched memo or repeated line: %s',async mode=>{
+ const products:ReviewedLine[]=[{...lines[0]!,amountMilliunits:-100000,memo:'Product'},{...lines[0]!,amountMilliunits:-100000,memo:'Product'},{...lines[1]!,amountMilliunits:-570,memo:'Shipping'}];
+ const subtransactions=products.map(l=>({category_id:l.categoryId,amount:l.amountMilliunits,memo:l.memo,deleted:false}));
+ if(mode==='line')subtransactions[0]!.memo='Changed';if(mode==='missing duplicate')subtransactions.splice(0,1);
+ seed(tx,{...tx,memo:mode==='parent'?'Changed':'Approved parent',subtransactions});
+ await expect(writeReviewedSplit(plan.id,target,products,new AbortController().signal,beforeSend,validateContext,'Approved parent')).rejects.toThrow('Could not verify');
+ expect(network.mock.calls.filter(([,options])=>options.method==='PUT')).toHaveLength(1);
+});
+it('clears an explicitly blank parent memo on a direct category save',async()=>{
+ const one=[{...lines[0]!,amountMilliunits:target.amount}];seed(tx,{...tx,memo:null,category_id:one[0]!.categoryId});
+ await writeReviewedSplit(plan.id,target,one,new AbortController().signal,beforeSend,validateContext,null);
+ expect(JSON.parse(network.mock.calls[3]![1].body).transaction.memo).toBeNull();
 });

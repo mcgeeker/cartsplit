@@ -16,6 +16,7 @@ import { putCategories, getAllCategories } from "@/lib/db";
 import { switchPlan } from "@/background/plan";
 import { clearPurchaseSuggestionCache } from "@/background/purchase-learning";
 import type { MessageRequest } from "@/lib/types";
+import { createLookupListener, cancelOrderLookup } from "@/background/order-lookup";
 
 /** Serialize connection, category-cache and review mutations. Cancellation is
  * delivered immediately; queued requests recheck their signal before I/O.
@@ -43,6 +44,7 @@ export default defineBackground(() => {
     void chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
   }
   browser.runtime.onMessage.addListener(createUiMessageListener(handleMessage));
+  browser.runtime.onMessage.addListener(createLookupListener());
 });
 
 async function handleMessage(message: MessageRequest): Promise<unknown> {
@@ -58,7 +60,7 @@ async function handleMessage(message: MessageRequest): Promise<unknown> {
       catch {return {error:"Could not reopen this order tab. It may already be open or the review expired."};}
     }
     case "PREPARE_PURCHASE_APPROVAL": {
-      try {return {preview:await withConnectionRequest(s=>serializeCategoriesWrite(()=>preparePurchaseApproval(message.reviewId,message.lineTotals,message.categories,message.confirmed,s,message.split,message.adjustments))) };}
+      try {return {preview:await withConnectionRequest(s=>serializeCategoriesWrite(()=>preparePurchaseApproval(message.reviewId,message.lineTotals,message.categories,message.confirmed,s,message.split,message.adjustments,message.memos))) };}
       catch(error) {return {error:purchasePreparationFailureText(error)};}
     }
     case "APPLY_PURCHASE_APPROVAL": {
@@ -89,6 +91,7 @@ async function handleMessage(message: MessageRequest): Promise<unknown> {
     }
 
     case "CONNECT_TOKEN": {
+      cancelOrderLookup();
       clearPurchaseSuggestionCache();
       invalidatePurchaseApproval();
       invalidateLocalDataPreview();
@@ -103,6 +106,7 @@ async function handleMessage(message: MessageRequest): Promise<unknown> {
     }
 
     case "SAVE_PLAN": {
+      cancelOrderLookup();
       clearPurchaseSuggestionCache();
       invalidatePurchaseApproval();
       invalidateLocalDataPreview();
@@ -149,6 +153,7 @@ async function handleMessage(message: MessageRequest): Promise<unknown> {
     }
 
     case "CLEAR_SETTINGS": {
+      cancelOrderLookup();
       clearPurchaseSuggestionCache();
       invalidatePurchaseApproval();
       invalidateLocalDataPreview();

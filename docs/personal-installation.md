@@ -1,17 +1,19 @@
 # Install and maintain CartSplit
 
-**[Download CartSplit 1.4.3](https://github.com/mcgeeker/cartsplit/releases/tag/v1.4.3)**
-for permanent installation in Firefox. Choose **cartsplit-1.4.3-signed.xpi** under
+**[Download CartSplit 1.9.6](https://github.com/mcgeeker/cartsplit/releases/tag/v1.9.6)**
+for permanent installation in Firefox. This prerelease is being tried before
+finalizing 2.0.0. Choose **cartsplit-1.9.6-signed.xpi** under
 Assets. Mozilla signs this unlisted add-on; it does not appear in public Add-ons
 search results. You do not need a developer account or build tools to install it.
 
 ## Install the signed extension
 
-1. Download [cartsplit-1.4.3-signed.xpi](https://github.com/mcgeeker/cartsplit/releases/download/v1.4.3/cartsplit-1.4.3-signed.xpi).
+1. Download [cartsplit-1.9.6-signed.xpi](https://github.com/mcgeeker/cartsplit/releases/download/v1.9.6/cartsplit-1.9.6-signed.xpi).
 2. Open the Firefox profile where you want to use CartSplit. In `about:addons`,
    choose the gear menu → **Install Add-on From File**.
 3. Select the signed XPI, review the permissions and choose **Add**.
-4. Open CartSplit's sidebar, enter your own YNAB token locally and choose your CAD plan.
+4. Open CartSplit's sidebar. Keep your existing connection when updating; if
+   connecting for the first time, enter your own YNAB token locally and choose your CAD plan.
 5. Restart Firefox and check that CartSplit and its connection remain available.
    No financial save is needed to check installation.
 
@@ -29,14 +31,15 @@ it does not mean the developer receives that information.
 
 ## Share with a friend
 
-Send the [release page](https://github.com/mcgeeker/cartsplit/releases/tag/v1.4.3)
+Send the [release page](https://github.com/mcgeeker/cartsplit/releases/tag/v1.9.6)
 or the signed XPI. The file contains code, not your token, profile or budget data.
 Each person installs it using the steps above and enters their own token locally.
 The supported scope remains Firefox, English Amazon.ca pages and CAD YNAB plans.
 
-For the exact source used to build 1.4.3, use **cartsplit-1.4.3-sources.zip** in the
+For the exact source used to build 1.9.6, use **cartsplit-1.9.6-sources.zip** in the
 release's Assets. This is the verified build source, including pinned dependencies
-and rebuild instructions. The development branch may advance after a release.
+and rebuild instructions. The source branch may advance after a release; repository documentation can be
+newer than the build-time documentation in the matching source archive.
 
 ## Load the current development build
 
@@ -93,7 +96,7 @@ See [self-distributed updates](https://extensionworkshop.com/documentation/publi
 
 | Task | Approach |
 | --- | --- |
-| Prepare an update | Increase the version, keep the same add-on ID, rebuild and verify fresh packages before authorized signing. Current source version: **1.4.3**. |
+| Prepare an update | Increase the version, keep the same add-on ID, then use the [release-preparation command](development.md#prepare-a-release-with-one-command) before authorized signing. Current source version: **1.9.6**. |
 | Install a signed update | Use the same permanent profile without first uninstalling. Check storage compatibility as part of the update. |
 | A new version fails | Disable CartSplit in `about:addons` and investigate. Keep the last working signed file and source package. |
 | A save result is uncertain | Inspect YNAB. Disabling, restarting or reverting CartSplit cannot undo a sent write or make it safe to retry. |

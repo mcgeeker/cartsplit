@@ -24,6 +24,8 @@ export class PurchasePreparationError extends Error {
  constructor(readonly stage:PurchasePreparationStage){super('Purchase preparation stopped.');}
 }
 const KNOWN = new Map([
+ ['Shorten each memo to 500 characters before preparing changes.', 'Shorten each memo to 500 characters before preparing changes.'],
+ ['The transaction memo changed. Review again.', 'The transaction memo changed in YNAB. Cancel review and read the order again before editing it.'],
  ["Assign every item and additional charge to a payment.","Assign every item and additional charge to one payment before preparing."],
  ["Each payment needs at least one assigned item or additional charge.","Each payment needs at least one assigned item or additional charge."],
  ["Split charges do not reconcile.","The charge totals no longer reconcile with the reviewed order. Cancel review and read the order again."],

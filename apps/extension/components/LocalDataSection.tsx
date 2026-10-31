@@ -1,12 +1,14 @@
-import {scrollExpandedDetails} from "./useRevealScroll";
-import { useState } from "react";
+import {revealExpandedContent} from "./useRevealScroll";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@lineitem/ui";
 import LocalDataCleanup from "./LocalDataCleanup";
 
 /** Cleanup stays unmounted until deliberately opened while disconnected. */
 export default function LocalDataSection({ connected = false }: { connected?: boolean }) {
   const [open, setOpen] = useState(false);
-  return <details className="scroll-mt-3 rounded-control border border-line p-3" onToggle={event => {if(event.target!==event.currentTarget)return;setOpen(event.currentTarget.open);scrollExpandedDetails(event);}}>
+  const section=useRef<HTMLDetailsElement>(null);
+  useEffect(()=>{if(open)revealExpandedContent(section.current);},[open]);
+  return <details ref={section} className="scroll-mt-3 rounded-control border border-line p-3" onToggle={event => {if(event.target!==event.currentTarget)return;setOpen(event.currentTarget.open);}}>
     <summary className="cursor-pointer font-semibold">Local data</summary>
     {open && <div className="mt-2 flex flex-col gap-2 text-[13px]">
       <p className="font-semibold">Product-category learning</p>

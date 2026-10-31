@@ -7,7 +7,7 @@ import PurchaseReview from './PurchaseReview';
 import AmazonTransactionsLink from './AmazonTransactionsLink';
 
 /** Keep drafts mounted by order; completed receipts live in background session memory. */
-export default function PurchaseReviewWorkspace({categories}:{categories:Category[]}){
+export default function PurchaseReviewWorkspace({categories,onReviewStart}:{categories:Category[];onReviewStart?:()=>void}){
  const context=useActiveOrderContext();
  const [orders,setOrders]=useState<Record<string,{loaded:boolean;session:PurchaseOrderSession|null;error:boolean}>>(() => Object.create(null));
  const [revision,refresh]=useState(0);
@@ -33,7 +33,7 @@ export default function PurchaseReviewWorkspace({categories}:{categories:Categor
  {selected?.error&&<Button variant="secondary" onClick={()=>refresh(n=>n+1)}>Check order status again</Button>}
  </section>}
  {Object.entries(orders).map(([id,entry])=>entry.loaded?<div key={id} hidden={context.orderKey!==id||entry.error}>
- <PurchaseReview categories={categories} visible={context.orderKey===id&&!entry.error} interactive={context.ready} activeTabId={context.tabId} session={entry.session} onSessionChange={()=>refresh(n=>n+1)}/>
+ <PurchaseReview categories={categories} visible={context.orderKey===id&&!entry.error} interactive={context.ready} activeTabId={context.tabId} session={entry.session} onReviewStart={onReviewStart} onSessionChange={()=>refresh(n=>n+1)}/>
  </div>:null)}
  </>;
 }

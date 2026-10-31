@@ -12,6 +12,23 @@ const cats=[{id:'test-cat',name:'Synthetic category',groupName:'Test'}];
 beforeEach(async()=>{vi.resetModules();vi.resetAllMocks();service=await import('./purchase-approval');io.query.mockImplementation(async(q:{active?:boolean})=>q.active?[{id:1,url:binding.detail.url}]:[{id:1,url:binding.detail.url},{id:2,url:binding.payments.url}]);io.review.mockImplementation(async(_c,_s,capture)=>{capture(structuredClone(binding));return structuredClone(view);});io.target.mockResolvedValue(target);io.categories.mockResolvedValue(cats);io.settings.mockResolvedValue(binding.connection);io.tab.mockImplementation(async(id:number)=>({url:id===1?binding.detail.url:binding.payments.url}));io.write.mockImplementation(async(_p,_t,_l,_s,send,context)=>{await context();send('test-only-token');});});
 async function prepare(){const r=await service.startPurchaseReview(true,new AbortController().signal);return service.preparePurchaseApproval(r.reviewId,[false],cats.map(({id,name})=>({id,name})),true,new AbortController().signal);}
 const apply=(id:unknown,confirmed:unknown=true)=>service.applyPurchaseApproval(id,confirmed,new AbortController().signal);
+it('binds editable memos to the immutable grant and preserves separate product rows',async()=>{
+ const multi={...view,orderId:'synthetic',transactionMemo:'Original',items:[{...view.items[0]!},{...view.items[0]!}],totalCents:2000,summary:{...view.summary,subtotalCents:2000}};
+ io.review.mockImplementation(async(_c,_s,capture)=>{capture(structuredClone(binding));return structuredClone(multi);});io.target.mockResolvedValue({...target,amount:-20000,memo:'Original'});
+ const review=await service.startPurchaseReview(true,new AbortController().signal),draft={transaction:'Original\nOrder link',lines:['Product one','Product two']};
+ const proposal=await service.preparePurchaseApproval(review.reviewId,[false,false],[...cats,...cats],true,new AbortController().signal,undefined,[],draft);
+ expect(proposal.memo).toBe('Original\nOrder link');expect(proposal.lines).toEqual([{categoryName:'Synthetic category',cents:1000,memo:'Product one'},{categoryName:'Synthetic category',cents:1000,memo:'Product two'}]);
+ draft.transaction='Forged';draft.lines[0]='Forged';proposal.memo='Forged';proposal.lines[0]!.memo='Forged';
+ await apply(proposal.approvalId);
+ expect(io.write.mock.calls[0]![6]).toBe('Original\nOrder link');expect(io.write.mock.calls[0]![2].map((line:{memo:string})=>line.memo)).toEqual(['Product one','Product two']);
+});
+it('rejects changed original memos and overlong drafts before a financial write',async()=>{
+ const memoView={...view,orderId:'synthetic',transactionMemo:'Original'};
+ io.review.mockImplementation(async(_c,_s,capture)=>{capture(structuredClone(binding));return structuredClone(memoView);});io.target.mockResolvedValue({...target,memo:'Changed'});
+ const review=await service.startPurchaseReview(true,new AbortController().signal);
+ await expect(service.preparePurchaseApproval(review.reviewId,[false],cats,true,new AbortController().signal,undefined,[],{transaction:'Proposed',lines:['Product']})).rejects.toThrow('memo changed');
+ await expect(service.preparePurchaseApproval(review.reviewId,[false],cats,true,new AbortController().signal,undefined,[],{transaction:'x'.repeat(501),lines:['Product']})).rejects.toThrow('500 characters');expect(io.write).not.toHaveBeenCalled();
+});
 it('binds category choices to fresh review and explicit local consent, then writes once and learns only after verified success',async()=>{const p=await prepare();expect(JSON.stringify(p)).not.toMatch(/test-only-token|test-tx|test-account|B000000001/);expect(io.write).not.toHaveBeenCalled();await expect(apply(p.approvalId,false)).rejects.toThrow();await apply(p.approvalId);await expect(apply(p.approvalId)).rejects.toThrow();expect(io.write).toHaveBeenCalledOnce();});
 it('consumes before awaiting so duplicate clicks cannot send twice',async()=>{const p=await prepare();const first=apply(p.approvalId);await expect(apply(p.approvalId)).rejects.toThrow();await first;expect(io.write).toHaveBeenCalledOnce();});
 it.each([{planId:'synthetic-other-plan'},{planName:'Synthetic renamed plan'}])('rejects a selected-plan change after preparation: %j',async change=>{

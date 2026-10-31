@@ -1,5 +1,6 @@
 import {beforeEach,expect,it,vi} from 'vitest';
-const io=vi.hoisted(()=>({settings:vi.fn(),query:vi.fn(),compare:vi.fn(),target:vi.fn(),get:vi.fn()}));
+const io=vi.hoisted(()=>({settings:vi.fn(),query:vi.fn(),compare:vi.fn(),target:vi.fn(),get:vi.fn(),lookup:vi.fn()}));
+vi.mock('./order-lookup',()=>({lookupPaymentsForOrder:io.lookup}));
 vi.mock('@/lib/ynab',()=>({getReviewedTarget:io.target,inspectReviewedCharge:io.target}));
 vi.mock('@/lib/settings',()=>({getSettings:io.settings}));vi.mock('wxt/browser',()=>({browser:{tabs:{query:io.query,get:io.get}}}));vi.mock('./page-request',async original=>({...await original<object>(),requestOrderPage:io.compare}));
 import {reviewSelectedOrder} from './order-review';
@@ -58,6 +59,12 @@ it('continues initial Review only after a valid target and uses the linked payme
  preflightCase();io.target.mockResolvedValue({planName:'Test Plan',transactionId:'synthetic-only'});const capture=vi.fn();
  await expect(reviewSelectedOrder(true,new AbortController().signal,capture,true)).resolves.toMatchObject({totalCents:1000,items:[{cardCents:1000}]});
  expect(capture).toHaveBeenCalledOnce();expect(io.target).toHaveBeenCalledOnce();
+});
+it('uses the verified lookup payments tab when another payments tab is already open',async()=>{
+ preflightCase();io.target.mockResolvedValue({planName:'Test Plan',transactionId:'synthetic-only',memo:null});io.lookup.mockReturnValue(2);
+ io.query.mockImplementation(async(q:{active?:boolean})=>q.active?[{id:1,url:'https://www.amazon.ca/your-orders/order-details?orderID=synthetic'}]:[{id:9,url:'https://www.amazon.ca/cpe/yourpayments/transactions?old=1'},{id:2,url:'https://www.amazon.ca/cpe/yourpayments/transactions'}]);
+ await expect(reviewSelectedOrder(true,new AbortController().signal,undefined,true)).resolves.toMatchObject({orderId:'synthetic',transactionMemo:null});
+ expect(io.compare).toHaveBeenCalledWith(2,expect.any(AbortSignal),'READ_CA_PREVIEW_PAYMENTS');
 });
 it('cancellation during the preflight prevents a completed Review',async()=>{
  preflightCase();const controller=new AbortController(),capture=vi.fn();

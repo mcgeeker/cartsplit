@@ -4,6 +4,10 @@ Use CartSplit to categorize an Amazon.ca order in your selected CAD YNAB plan.
 **YNAB changes only when you approve a prepared proposal and save it.** Review
 and preparation are read-only.
 
+Signed 1.9.6 is available as a prerelease for use before finalizing 2.0.0. It adds
+register lookup and editable transaction/product-line memos to the workflow below.
+See [the trial guide](2.0-development.md) for those features and remaining checks.
+
 ## Review and save
 
 1. **Open the order.** Select its Amazon.ca **Order details** tab. Keep an Amazon

@@ -22,6 +22,7 @@ export default defineConfig({
       // pages/APIs — unit coverage there would be noise, not signal.
       include: ["lib/**", "background/**", "retailers/**"],
       exclude: [
+        "**/* [0-9]*.{ts,tsx}", // preserved stray copies are not application inputs
         "**/*.test.{ts,tsx}",
         "**/types.ts",
         "lib/db.ts",

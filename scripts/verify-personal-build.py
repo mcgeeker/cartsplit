@@ -12,15 +12,17 @@ assert set(gecko["data_collection_permissions"]["required"]) == {
     "authenticationInfo", "financialAndPaymentInfo"
 }
 assert set(manifest["permissions"]) == {
-    "storage", "tabs", "https://www.amazon.ca/*", "https://api.ynab.com/*",
+    "storage", "tabs", "https://www.amazon.ca/*", "https://api.ynab.com/*", "https://app.ynab.com/*",
     "https://huggingface.co/*", "https://*.huggingface.co/*", "https://*.hf.co/*",
 }
-assert len(manifest["content_scripts"]) == 1
-assert manifest["content_scripts"][0]["run_at"] == "document_start"
-assert set(manifest["content_scripts"][0]["matches"]) == {
+assert len(manifest["content_scripts"]) == 2
+readers = {script["run_at"]: set(script["matches"]) for script in manifest["content_scripts"]}
+assert readers["document_start"] == {
     "https://www.amazon.ca/your-orders/order-details*",
     "https://www.amazon.ca/cpe/yourpayments/transactions*",
 }
+assert readers["document_idle"] == {"https://app.ynab.com/*"}
+assert (build / "order-lookup.html").is_file()
 csp = manifest["content_security_policy"]
 if isinstance(csp, dict):
     csp = csp["extension_pages"]

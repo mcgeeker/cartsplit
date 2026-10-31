@@ -3,15 +3,18 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import App from "../entrypoints/sidepanel/App";
-import { getSettings, getCategories, refreshCategories, clearSettings } from "@/lib/messaging";
+import { getSettings, getCategories, refreshCategories, clearSettings, reviewCanadianPurchase } from "@/lib/messaging";
+
+const lookupApi=vi.hoisted(()=>({sendMessage:vi.fn()}));
 
 vi.mock("./useActiveOrderContext",()=>({useActiveOrderContext:()=>({orderKey:"synthetic",tabId:1,ready:true})}));
 vi.mock("./useReviewTabState",()=>({useReviewTabState:()=>"active"}));
 vi.mock("./useActiveOrderTab",()=>({useActiveOrderTab:()=>true}));
 vi.mock("./AmazonTransactionsLink",()=>({default:()=>null}));
-vi.mock("wxt/browser", () => ({ browser: { runtime: { getManifest: () => ({ version: "1.4.0" }) } } }));
+vi.mock("wxt/browser", () => ({ browser: { runtime: { getManifest: () => ({ version: "1.4.0" }),sendMessage:lookupApi.sendMessage } } }));
 vi.mock("@/lib/messaging", () => ({
   getPurchaseOrderSession:vi.fn(async()=>({session:null})),
+  reviewCanadianPurchase:vi.fn(),cancelPurchaseChanges:vi.fn(async()=>{}),
   cancelCanadianApproval: vi.fn(async () => {}), getSettings: vi.fn(), getCategories: vi.fn(), refreshCategories: vi.fn(), clearSettings: vi.fn(),
   previewTestSplit: vi.fn(), sync: vi.fn(), approveBatch: vi.fn(), approveTransaction: vi.fn(), openRetailer: vi.fn(),
 }));
@@ -20,6 +23,7 @@ let root: Root;
 let host: HTMLDivElement;
 beforeEach(() => {
   vi.clearAllMocks();
+  lookupApi.sendMessage.mockResolvedValue({lookup:{state:'idle',pages:0,message:'',candidates:[]}});
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.mocked(getSettings).mockResolvedValue({ hasToken: true, planId: "test-a", planName: "Extension Test Budget" });
   vi.mocked(getCategories).mockResolvedValue({ categories: [{ id: "test-cat", name: "Test category", groupName: "Test group" }] });
@@ -27,13 +31,26 @@ beforeEach(() => {
   vi.mocked(clearSettings).mockResolvedValue();
   host = document.createElement("div"); document.body.append(host); root = createRoot(host);
 });
-afterEach(async () => { await act(async () => root.unmount()); host.remove(); vi.unstubAllGlobals(); });
+afterEach(async () => { await act(async () => root.unmount()); host.remove(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 async function mount() { await act(async () => root.render(<App />)); }
 async function click(text: string) {
   await act(async () => [...host.querySelectorAll("button")].find((b) => b.textContent === text)!.click());
 }
 
 describe("read-only browser check UI", () => {
+  it("dismisses completed lookup progress as soon as the owner starts reviewing", async () => {
+    vi.useFakeTimers();
+    let dismissed=false;
+    lookupApi.sendMessage.mockImplementation(async request=>request.type==='LOOKUP_DISMISS'?(dismissed=true,{ok:true}):{lookup:{state:'opened',pages:3,message:'Amazon order opened.',candidates:[],dismissed}});
+    let finish!:(value:{error:string})=>void;
+    vi.mocked(reviewCanadianPurchase).mockImplementationOnce(()=>new Promise(resolve=>{finish=resolve;}));
+    await mount();expect(host.textContent).toContain('3 payment pages checked');
+    await click('Review selected order');expect(lookupApi.sendMessage).toHaveBeenCalledWith({type:'LOOKUP_DISMISS'});
+    await act(async()=>vi.advanceTimersByTimeAsync(500));
+    expect(host.querySelector('[aria-label="Find Amazon order"]')).toBeNull();
+    expect(host.textContent).not.toContain('payment pages checked');
+    await act(async()=>finish({error:'Review stopped.'}));
+  });
   it("shows the chosen budget/category count without auto-sync or transaction controls", async () => {
     await mount();
     expect(host.textContent).toContain("Amazon.ca");

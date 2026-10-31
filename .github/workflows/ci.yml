@@ -32,6 +32,9 @@ jobs:
             extension:
               - 'apps/extension/**'
               - 'scripts/verify-personal-build.py'
+              - 'scripts/package-personal-firefox.py'
+              - 'scripts/prepare-release.py'
+              - 'scripts/test_prepare_release.py'
               - 'packages/ui/**'
               - 'pnpm-lock.yaml'
               - 'package.json'
@@ -61,6 +64,8 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile --ignore-scripts
       - run: pnpm --filter extension exec wxt prepare
+      - name: Release tooling safety tests
+        run: python3 -m unittest discover -s scripts -p test_prepare_release.py
       - name: Typecheck
         run: pnpm --filter extension compile
       - name: Unit tests + coverage

@@ -4,6 +4,11 @@ CartSplit runs the selected-order Amazon.ca workflow in Firefox. It connects
 directly to YNAB using a locally entered Personal Access Token. The
 upstream OAuth worker and marketing site are not part of this runtime.
 
+The signed 1.9.6 prerelease includes register lookup and memos. Development builds
+increment through 1.9.x while the owner uses the extension and identifies any bugs
+or improvements before 2.0.0. See [trial acceptance](2.0-development.md) for the
+remaining release gate.
+
 Choosing one plan in CartSplit does not restrict what the token itself can access
 in YNAB; the selected-plan checks are enforced by CartSplit.
 
@@ -14,13 +19,15 @@ use the [developer guide](development.md).
 
 | Destination | Purpose and data |
 | --- | --- |
-| YNAB API | Authenticate, read plans/accounts/categories/transactions, and save category changes the user approves. The bearer token is sent only here. |
+| YNAB API | Authenticate, read plans/accounts/categories/transactions, and save categories, split lines and memos the user approves. The bearer token is sent only here. |
 | Hugging Face and allowed CDNs | Download pinned public model files. Requests expose ordinary network metadata, including IP address; they do not contain product titles, category text or the YNAB token. |
-| Amazon.ca in Firefox tabs | The user browses signed-in order/payment pages. CartSplit reads the selected pages when requested. |
+| Amazon.ca in Firefox tabs | Read order/payment pages when requested; register lookup reuses a verified Payments tab in the same window and advances it after an explicit click. |
+| YNAB web register | An isolated content script reads visible Amazon row identity, payee and amount to add lookup buttons. The background validates the clicked purchase through the API. No token is exposed to the page. |
 
 Matching, category suggestions and learning run locally. The extension runtime has
 no analytics, feedback submission or cloud inference service. Approved writes send
-category/split data to YNAB; they do not upload product-title memos.
+category/split data and the displayed parent/product memos directly to YNAB.
+Memo suggestions can include product titles and the Amazon order reference.
 
 The manifest permits Amazon.ca, YNAB and the model download hosts. Packaged scripts
 and WebAssembly run locally; the content security policy restricts outbound
@@ -49,9 +56,10 @@ target must be uncategorized, unsplit, not reconciled and not a transfer. Multip
 matches stop the operation, including when one candidate has the exact Amazon date.
 
 Every check stays anchored to the original Amazon payment date. Saving preserves
-the actual YNAB date, account, amount, approval, memo, payee, cleared status, flag
-and import/match identifiers. Lines sharing a category are combined; one resulting
-category uses a direct category update.
+the actual YNAB date, account, amount, approval, payee, cleared status, flag and
+import/match identifiers. Parent memos change only to the approved text. Each
+funded product row retains its own line even when categories repeat; one resulting
+line uses a direct category update and the transaction memo.
 
 Single-product orders assign the full card payment to its category. Multiple
 payments keep their individual totals and approvals. Within-payment allocations
@@ -69,6 +77,7 @@ discount evidence, unknown after-tax reductions and inconsistent totals stop rev
 | Boundary | Implementation |
 | --- | --- |
 | Sidebar → background | `background/ui-messages.ts` requires the exact extension ID and sidebar URL, no tab sender, and an allowed command. |
+| Register → lookup | A separate read-only listener validates the extension ID, top-level sender tab, actual register URL and selected plan/account. Status/control requests require the exact sidebar URL without a tab sender, or the legacy lookup-page URL with its actual top-level tab verified. Web content cannot control lookup or invoke financial commands. |
 | Background → page | `background/page-request.ts` bounds explicit requests by cancellation and a ten-second deadline. |
 | Page reply → review | `background/order-review.ts` validates URLs, replies, amounts and funding; sidebar-supplied amounts are not trusted. |
 | Background → YNAB | `lib/ynab.ts` uses a fixed HTTPS origin, rejects redirects, omits cookies and checks permitted paths/methods. |
@@ -78,6 +87,14 @@ Paths are relative to `apps/extension/`. The Canadian content reader registers a
 passive listener at document start; loading a page does not automatically scrape,
 sync, initialize the model or save. Content scripts cannot read the connection
 database or invoke privileged sidebar commands.
+
+Lookup accepts categorized, split and reconciled parent purchases in supported
+accounts. It searches exact card amounts within ±2 calendar days, proves complete
+date-window coverage before selecting an order, and presents ambiguous order
+choices. Search segments stop at 50 pages or 120 seconds; sign-in and segment
+continuation require explicit user action. Unreadable funding, navigation or page
+identity stops the search. The chosen order's payment page is rechecked/restored
+before opening it, and remains the preferred payments tab for order review.
 
 ## What is stored?
 
@@ -92,7 +109,8 @@ database or invoke privileged sidebar commands.
 | Public model files | Browser-managed model cache. Application-data cleanup does not remove these files. |
 
 **In memory:** review drafts, prepared approvals, category-name vectors, session
-receipts and uncertain-save warnings. Reviews expire for authorization after ten
+receipts, memo drafts, lookup page identities/candidates and uncertain-save warnings.
+Lookup state is not written to disk. Reviews expire for authorization after ten
 minutes; final proposals after five. Expiry does not guarantee physical erasure
 at that moment. Up to 100 completed order receipts are retained; partial and
 unconfirmed results are kept for the background session. Restart clears them.

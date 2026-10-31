@@ -72,19 +72,20 @@ export type AdjustmentKind = "fee" | "shipping" | "coupon" | "gift";
 /** Whole product row indices only. Amounts always come from the freshly read order. */
 export interface AdjustmentPolicy {kind:AdjustmentKind;mode:"all"|"selected"|"category";method:"equal"|"proportional";items:number[]}
 export interface PurchaseDestination {planName:string;accountName:string}
-export interface PurchaseSavedReceipt {destination?:PurchaseDestination;date:string;totalCents:number;lines:{categoryName:string;cents:number}[];learningSaved:boolean}
+export interface PurchaseMemoDraft { transaction: string; lines: string[] }
+export interface PurchaseSavedReceipt {destination?:PurchaseDestination;date:string;totalCents:number;memo?:string|null;lines:{categoryName:string;cents:number;memo?:string|null}[];learningSaved:boolean}
 export interface PurchaseOrderSession {receipts:PurchaseSavedReceipt[];complete:boolean;orderTotalCents:number;pending?:{state:"saving"|"uncertain";date:string;totalCents:number}}
-export interface PurchaseApprovalPreview { paymentDate?:string;destination?:PurchaseDestination;approvalId:string; expiresAt:number;date:string;totalCents:number;lines:{categoryName:string;cents:number}[] }
+export interface PurchaseApprovalPreview { paymentDate?:string;destination?:PurchaseDestination;approvalId:string; expiresAt:number;date:string;totalCents:number;memo?:string|null;lines:{categoryName:string;cents:number;memo?:string|null}[] }
 
 export type PurchaseSuggestionSource = "exact" | "history" | "model";
-export interface PurchaseReview { planName?:string;matchedCharges?:{date:string;cents:number;eligible?:boolean}[]; reviewId?:string; items: { title: string; suggestedCategoryId?: string | null; suggestionSource?: PurchaseSuggestionSource | null; cardCents: number | null; quantity?: number | null; priceCents?: number }[]; totalCents: number; summary?: {subtotalCents:number;shippingCents:number;shippingChargeCents?:number;shippingCreditCents?:number;couponCents?:number;feeCents:number;taxCents:number;giftCents:number}; allocationPending?: boolean }
+export interface PurchaseReview { orderId?:string;transactionMemo?:string|null;planName?:string;matchedCharges?:{date:string;cents:number;eligible?:boolean;memo?:string|null}[]; reviewId?:string; items: { title: string; suggestedCategoryId?: string | null; suggestionSource?: PurchaseSuggestionSource | null; cardCents: number | null; quantity?: number | null; priceCents?: number }[]; totalCents: number; summary?: {subtotalCents:number;shippingCents:number;shippingChargeCents?:number;shippingCreditCents?:number;couponCents?:number;feeCents:number;taxCents:number;giftCents:number}; allocationPending?: boolean }
 
 export type MessageRequest =
   | {type:"GET_PURCHASE_ORDER_SESSION";orderKey:string}
   | {type:"SUSPEND_PURCHASE_REVIEW";reviewId?:string}
   | {type:"GET_PURCHASE_REVIEW_TAB";reviewId:string}
   | {type:"REOPEN_PURCHASE_REVIEW_TAB";reviewId:string}
-  | {type:"PREPARE_PURCHASE_APPROVAL";reviewId:string;lineTotals:boolean[];categories:{id:string;name:string}[];confirmed:boolean;split?:SplitChargeSelection;adjustments?:AdjustmentPolicy[]}
+  | {type:"PREPARE_PURCHASE_APPROVAL";reviewId:string;lineTotals:boolean[];categories:{id:string;name:string}[];confirmed:boolean;split?:SplitChargeSelection;adjustments?:AdjustmentPolicy[];memos?:PurchaseMemoDraft}
   | {type:"APPLY_PURCHASE_APPROVAL";approvalId:string;confirmed:boolean}
   | {type:"CANCEL_PURCHASE_APPROVAL";id?:string}
   | { type: "REVIEW_CA_PURCHASE"; confirmed: boolean }
